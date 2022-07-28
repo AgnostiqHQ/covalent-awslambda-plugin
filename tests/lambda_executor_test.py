@@ -21,10 +21,13 @@
 """Tests for Covalent AWSLambda executor"""
 
 from unittest.mock import patch
+
+import covalent as ct
 import pytest
 from mock import Mock
-import covalent as ct
+
 from covalent_awslambda_plugin import AWSLambdaExecutor
+
 
 @pytest.fixture(scope="module")
 def lambda_executor():
