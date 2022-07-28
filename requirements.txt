@@ -19,3 +19,6 @@
 # Relief from the License may be granted by purchasing a commercial license.
 
 # Include any dependencies for the plugin in this file.
+boto3==1.24.35
+cloudpickle==2.0.0
+
