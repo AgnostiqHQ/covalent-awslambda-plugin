@@ -21,10 +21,16 @@
 """This is an example of a custom Covalent executor plugin."""
 
 import os
+import time
 from contextlib import contextmanager
+import pathlib
 from typing import Callable, Dict, List
 from abc import ABC, abstractmethod
+from zipfile import ZipFile
 import cloudpickle as pickle
+import subprocess
+import sys
+import shutil
 
 import boto3
 import botocore.exceptions
@@ -33,24 +39,24 @@ from boto3.session import Session
 # Covalent logger
 from covalent._shared_files import logger
 
-# DispatchInfo objects are used to share info of a dispatched computation between different
-# tasks (electrons) of the workflow (lattice).
-from covalent._shared_files.util_classes import DispatchInfo
-
 # All executor plugins inherit from the BaseExecutor base class.
 from covalent.executor import BaseExecutor
-from sqlalchemy import func
 
 app_log = logger.app_log
 log_stack_info = logger.log_stack_info
-
 
 executor_plugin_name = "AWSLambdaExecutor"
 
 _EXECUTOR_PLUGIN_DEFAULTS = {
     "credentials": os.environ.get("AWS_SHARED_CREDENTIALS_FILE") or os.path.join(os.environ.get("HOME"), ".aws/credentials"),
     "profile": os.environ.get("AWS_PROFILE") or "default",
-    "region": os.environ.get("AWS_REGION") or "us-east-1"
+    "region": os.environ.get("AWS_REGION") or "us-east-1",
+    "lambda_role_name": "CovalentLambdaExecutionRole",
+    "s3_bucket_name": "covalent-lambda-job-resources",
+    "cache_dir": os.path.join(os.environ['HOME'], '.cache/covalent'),
+    "poll_freq": 5,
+    "timeout": 60,
+    "memory_size": 512
 }
 
 class ResourceBuilder(ABC):
@@ -66,236 +72,126 @@ class ResourceBuilder(ABC):
     def teardown(self, *args, **kwargs):
         raise NotImplementedError
 
-class S3BucketBuilder(ResourceBuilder):
-    """Create an S3 bucket"""
-    def __init__(self, bucket_name: str, session):
-        self.bucket_name = bucket_name
-        super().__init__(session=session)
-
-    def setup(self):
-        s3_bucket = self.session.resource('s3')
-        try:
-            app_log.debug(f"Creating S3 bucket: {self.bucket_name}")
-            response = s3_bucket.create_bucket(Bucket=self.bucket_name)
-            app_log.debug(f"S3 BUCKET RESPONSE: {response}")
-        except botocore.exceptions.ClientError as ce:
-            app_log.exception(ce)
-            exit(1)
-
-    def teardown(self):
-        s3_resource = self.session.resource('s3')
-        s3_bucket = s3_resource.Bucket(self.bucket_name)
-        app_log.debug(f"Deleting bucket: {s3_bucket}")
-        try:
-            for s3_object in s3_bucket.objects.all():
-                s3_object.delete()
-        except botocore.exceptions.ClientError as ce:
-            app_log.exception(ce)
-            exit(1)
-
-        try:
-            response = s3_bucket.delete()
-            app_log.warning(f"{response}")
-        except botocore.exceptions.ClientError as ce:
-            app_log.exception(ce)
-            exit(1)
-
-class ECRBuilder(ResourceBuilder):
-    """Create an AWS Elastic container registry
-    """
-    def __init__(self, name: str, session):
-        self.name = name
-        self.client = session.client("ecr")
-
-    def setup(self):
-        try:
-            app_log.debug(f"Creating ECR: {self.name}")
-            response = self.client.create_repository(repositoryName=self.name)
-            app_log.debug(f"{response}")
-        except botocore.exceptions.ClientError as ce:
-            app_log.exception(ce)
-            exit(1)
-
-    def teardown(self):
-        try:
-            app_log.debug(f"Deleting ECR: {self.name}")
-            response = self.client.delete_repository(repositoryName=self.name, force=True)
-            app_log.debug(f"{response}")
-        except botocore.exceptions.ClientError as ce:
-            app_log.exception(ce)
-            exit(1)
-
-class DockerfileBuilder(ResourceBuilder):
-    """Create a Dockerfile which wraps an executable Python task
-
-    Args:
-        exec_script_filename: Name of the executable Python script
-        docker_working_dir: Working directory path within the container
-    """
-    def __init__(self, exec_script_filename: str):
-        self.script = exec_script_filename
-    def setup(self):
-        """Create the dockerfile"""
-        dockerfile=f"""
-        FROM python:3.8-slim-buster
-
-        RUN apt-get update && \\
-            apt-get install -y && \\
-            apt-get install -y build-essential && \\
-            rm -rf /var/lib/apt/lists/* && \\
-            pip install --no-cache-dir --use-feature=in-tree-build boto3 && \\
-            pip install --no-cache-dir --use-feature=in-tree-build cloudpickle && \\
-            pip install --no-cache-dir --use-feature=in-tree-build covalent --pre
-
-        WORKDIR /tmp/covalent
-
-        COPY {self.script} /tmp/covalent
-
-        ENTRYPOINT ["python"]
-        CMD [/tmp/covalent/{self.script}]
-        """
-
-        with open("Dockerfile", "w") as f:
-            f.write(dockerfile)
-
-    def teardown(self):
-        """Delete the Dockerfile"""
-        if os.path.exists("Dockerfile"):
-            os.remove("Dockerfile")
-
-class DockerImageBuilder(ResourceBuilder):
-    """Build a Docker image given the dockerfile using AWS CodeBuild service"""
-    def __init__(self, account_id: str, project_name: str, repo_name: str, dispatch_id: str, node_id: int):
-        self.account_id = account_id
-        self.project_name = project_name
-        self.ecr_repo_name = repo_name
-        self.dispatch_id = dispatch_id
-        self.node_id = node_id
-
-    def setup(self):
-        with self.get_session() as session:
-            client = session.client("codebuild")
-
-            # create a project
-            project_kwargs = {
-                'name': self.project_name,
-                'source': {
-                    'type': 'NO_SOURCE',
-                    'buildspec': open('./buildspec.yml', 'r').read(),
-                    'reportBuildStatus': True,
-                },
-                'artifacts': {
-                    'type': 'NO_ARTIFACTS'
-                },
-                'environment': {
-                    'type': 'LINUX_CONTAINER',
-                    'image': 'aws/codebuild/standard:5.0',
-                    'computeType': 'BUILD_GENERAL1_SMALL',
-                    'environmentVariables': [
-                        {
-                            'name': 'ECR_REPO_NAME',
-                            'value': self.ecr_repo_name
-                        },
-                        {
-                            'name': 'DISPATCH_ID',
-                            'value': self.dispatch_id
-                        },
-                        {
-                            'name': 'NODE_ID',
-                            'value': self.node_id
-                        },
-                        {
-                            'name': 'AWS_ACCOUNT_ID',
-                            'value': self.account_id
-                        }
-                    ],
-                    'privilegedMode': True,
-                },
-                'serviceRole': session.client('sts').get_caller_identity()['Arn']
-            }
-            try:
-                response = client.create_project(**project_kwargs)
-            except botocore.exceptions.ClientError as ce:
-                app_log.exception(ce)
-                exit(1)
-
-    def teardown(self):
-        with self.get_session() as session:
-            client = session.client("codebuild")
-            try:
-                response = client.delete_project(name=self.project_name)
-            except botocore.exceptions.ClientError as ce:
-                app_log.exception(ce)
-                exit(1)
-
 class ExecScriptBuilder(ResourceBuilder):
     """Create the executable Python script that executes the task"""
-    def __init__(self, func: Callable, args: List, kwargs: Dict, dispatch_id: str, node_id: int,
-        s3_bucket: str, session):
+    def __init__(self, func: Callable, args: List, kwargs: Dict,
+        func_filename: str, result_filename: str, script_filename: str, s3_bucket: str):
         self.function = func
         self.args = args
         self.kwargs = kwargs
         self.bucket_name = s3_bucket
-
-        self._func_filename = f"func-{dispatch_id}-{node_id}.pkl"
-        self._result_filename = f"result-{dispatch_id}-{node_id}.pkl"
-        self._script_filename = f"script-{dispatch_id}-{node_id}.py"
-
-        super().__init__(session)
+        self.func_filename = func_filename
+        self.result_filename = result_filename
+        self.script_filename = script_filename
+        super().__init__(session=None)
     
     def setup(self):
-        # Pickle function, args and kwargs
-        with open(self._func_filename, "wb") as f:
-            pickle.dump((self.function, self.args, self.kwargs), f)
+        exec_script="""
+import cloudpickle as pickle
+import boto3
+import os
 
-        # Upload pickled file to s3 bucket created
-        client = self.session.client('s3')
-        try:
-            with open(self._func_filename, "rb") as f:
-                client.upload_fileobj(f, self.bucket_name, self._func_filename)
-        except botocore.exceptions.ClientError as ce:
-            app_log.exception(ce)
-            exit(1)
+def lambda_handler(event, context):
+    os.environ['HOME'] = "/tmp"
+    os.chdir("/tmp")
 
-        exec_script=f"""
-        import os
-        import cloudpickle as pickle
-        import boto3
+    s3 = boto3.client("s3")
 
-        local_func_filename = os.path.join(/tmp/covalent/{self._func_filename})
-        local_result_filename = os.path.join(/tmp/covalent/{self._result_filename})
+    try:
+        s3.download_file("{bucket_name}", "{func_filename}", "/tmp/{func_filename}")
+    except Exception as e:
+        print(e)
 
-        s3 = boto3.client("s3")
-        s3.download_file({self.bucket_name}, {self._func_filename}, local_file_name)
+    with open("/tmp/{func_filename}", "rb") as f:
+        function, args, kwargs = pickle.load(f)
 
-        with open(local_func_filename, "rb") as f:
-            function, args, kwargs = pickle.load(f)
-
+    try:
         result = function(*args, **kwargs)
-
-        with open(local_result_filename, "wb") as f:
-            pickle.dump(result, f)
-
-        s3.upload_file(local_result_filename, {self.bucket_name}, {self._result_filename})
-        """
-
-        with open(self._script_filename, "w") as f:
+    except Exception as e:
+        print(e)
+    
+    with open("/tmp/{result_filename}", "wb") as f:
+        pickle.dump(result, f)
+    
+    try:
+        s3.upload_file("/tmp/{result_filename}", "{bucket_name}", "{result_filename}")
+    except Exception as e:
+        print(e)
+""".format(
+    bucket_name=self.bucket_name,
+    func_filename=self.func_filename,
+    result_filename=self.result_filename
+)
+        with open(self.script_filename, "w") as f:
             f.write(exec_script)
 
+        return self.script_filename
+
     def teardown(self):
-        if os.path.exists(self._script_filename):
-            os.remove(self._script_filename)
+        if os.path.exists(self.script_filename):
+            os.remove(self.script_filename)
 
-        # Remove file from s3
-        s3_resource = self.session.resource('s3')
-        s3_bucket = s3_resource.Bucket(self.bucket_name)
-        try:
-            for s3_object in s3_bucket.objects.all():
-                s3_object.delete()
-        except botocore.exceptions.ClientError as ce:
-            app_log.exception(ce)
-            exit(1)
+class DeploymentPackageBuilder:
+    def __init__(self, directory: str, archive_name: str, s3_bucket_name: str):
+        self.directory = directory
+        self.archive_name = archive_name
+        self.s3_bucket_name = s3_bucket_name
+        self.__target_dir = os.path.join(self.directory, 'targets')
+        self.__deployment_archive = os.path.join(self.directory, self.archive_name)
 
+    def install(self, pkg_name: str, pre: bool = False):
+        if pre:
+            return subprocess.run([
+            sys.executable,
+            "-m",
+            "pip",
+            "install",
+            "--target",
+            self.__target_dir,
+            "--upgrade",
+            pkg_name,
+            "--pre"
+        ],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.STDOUT)
+
+        return subprocess.run([
+            sys.executable,
+            "-m",
+            "pip",
+            "install",
+            "--target",
+            self.__target_dir,
+            "--upgrade",
+            pkg_name
+        ],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.STDOUT)
+
+    def __enter__(self):
+        if os.path.exists(self.__target_dir):
+            shutil.rmtree(self.__target_dir)
+            os.mkdir(self.__target_dir)
+
+        # Install the required python dependencies
+        self.install("boto3")
+        self.install("cloudpickle==2.0.0")
+        self.install("covalent", pre=True)
+
+        # Create zip archive with dependencies
+        with ZipFile(self.__deployment_archive, mode='w') as archive:
+            for file_path in pathlib.Path(self.__target_dir).rglob("*"):
+                archive.write(
+                    file_path,
+                    arcname=file_path.relative_to(pathlib.Path(self.__target_dir))
+                )
+
+        return self.__deployment_archive
+
+    def __exit__(self, exc_type, exc_value, exc_tb):
+        pass
+        """Cleanup transient resources"""
+        pass
 
 class AWSLambdaExecutor(BaseExecutor):
     """AWS Lambda executor plugin
@@ -309,52 +205,240 @@ class AWSLambdaExecutor(BaseExecutor):
         credentials: str,
         profile: str,
         region: str,
+        lambda_role_name: str,
+        s3_bucket_name: str,
+        cache_dir: str,
+        poll_freq: int = 5,
+        timeout: int = 60,
+        memory_size: int = 512,
         **kwargs,
     ) -> None:
         self.credentials = credentials
         self.profile = profile
         self.region = region
 
-        self._ecr_repo_name = None
-        self._codebuild_project_name = None
-        self._s3_bucket_name = None
-        self._script_filename = None
+        self.s3_bucket_name = s3_bucket_name
+        self.role_name = lambda_role_name
+        self.cache_dir = cache_dir
+        self.poll_freq = poll_freq
+        self.timeout = timeout
+        self.memory_size = memory_size
+
+        self.cwd = os.getcwd()
 
         os.environ['AWS_SHARED_CREDENTIALS_FILE'] = f"{self.credentials}"
         os.environ['AWS_PROFILE'] = f"{self.profile}"
         os.environ['AWS_REGION'] = f"{self.region}"
 
-        super().__init__(**kwargs)
+        self.func_filename = ""
+        self.result_filename = ""
+        self.script_filename = ""
+        self.dispatch_id = ""
+        self.node_id = None
+        self.function_name = ""
+        self.workdir = ""
+
+        super().__init__(cache_dir=cache_dir, **kwargs)
 
     @contextmanager
     def get_session(self) -> Session:
         yield boto3.Session(profile_name=self.profile, region_name=self.region)
 
-    def setup(self, function: Callable, args: List, kwargs: Dict, dispatch_id: str, node_id: str):
-        """Setup the infra necessary for the lambda executor"""
-        self._s3_bucket_name=f"bucket-{dispatch_id}-{node_id}"
-        self._ecr_repo_name = f"ecr-{dispatch_id}-{node_id}"
-        self._script_filename = f"script-{dispatch_id}-{node_id}"
+    def _create_lambda(self) -> Dict:
+        """Create the lambda function"""
+        self.function_name = f"lambda-{self.dispatch_id}-{self.node_id}"
 
         with self.get_session() as session:
-            #S3BucketBuilder(bucket_name=self._s3_bucket_name, session=session).setup()
-            #ECRBuilder(name=self._ecr_repo_name, session=session).setup()
-            ExecScriptBuilder(func=function, args=args, kwargs=kwargs,
-                dispatch_id=dispatch_id, node_id=node_id, s3_bucket=self._s3_bucket_name).setup()
-            DockerfileBuilder(exec_script_filename=self._script_filename).setup()
+            iam_client = session.client('iam')
+            try:
+                response = iam_client.get_role(RoleName=f"{self.role_name}")
+                role_arn = response['Role']['Arn']
+            except botocore.exceptions.ClientError as ce:
+                app_log.exception(ce)
+                exit(1)
+            
+        lambda_create_kwargs = {
+            'FunctionName': f"{self.function_name}",
+            'Runtime': 'python3.8',
+            'Role': f"{role_arn}",
+            'Handler': "lambda_function.lambda_handler",
+            'Code': {
+                'S3Bucket': f'{self.s3_bucket_name}',
+                'S3Key': f'lambda-{self.dispatch_id}-{self.node_id}.zip'
+            },
+            'PackageType': 'Zip',
+            'Description': f'AWS lambda for task {self.dispatch_id}/{self.node_id}',
+            'Tags': {
+                'dispatch_id': f"{self.dispatch_id}",
+                "node_id": f"{self.node_id}"
+            },
+            'Publish': True,
+            'Timeout': self.timeout,
+            'MemorySize': self.memory_size
+        }
 
-    def run(self, function: Callable, args: List, kwargs: Dict):
-        pass
-
-    def teardown(self, dispatch_id: str, node_id: str):
         with self.get_session() as session:
-            #S3BucketBuilder(bucket_name=self._s3_bucket_name, session=session).teardown()
-            #ECRBuilder(self._ecr_repo_name, session).teardown()
-            pass
+            lambda_client = session.client('lambda')
+            try:
+                response = lambda_client.create_function(**lambda_create_kwargs)
+                app_log.warning(f"Lambda function: {self.function_name} created: {response}")
+            except botocore.exceptions.ClientError as ce:
+                app_log.exception(ce)
+                exit(1)
 
-    def execute(self, function: Callable, args: List, kwargs: Dict, dispatch_id: str,
-        results_dir: str, node_id: int = -1):
-        self.setup(function, args, kwargs, dispatch_id=dispatch_id, node_id = node_id)
-        self.run(function=function, args=args, kwargs=kwargs)
-        self.teardown(dispatch_id=dispatch_id, node_id=node_id)
-        return None, None, None
+        # Check if lambda is active
+        is_active = False
+        while not is_active:
+            lambda_state = lambda_client.get_function(FunctionName=self.function_name)
+            app_log.debug(f"Lambda funciton {self.function_name} state: {lambda_state['Configuration']['State']}")
+            if lambda_state['Configuration']['State'] == 'Active':
+                is_active = True
+            else:
+                time.sleep(0.1)
+                continue
+
+        return lambda_state
+
+    def _invoke_lambda(self) -> Dict:
+        """Invoke the Lambda function and return the response"""
+        with self.get_session() as session:
+            client = session.client('lambda')
+            try:
+                response = client.invoke(FunctionName=self.function_name)
+            except botocore.exceptions.ClientError as ce:
+                app_log.exception(ce)
+                exit(1)
+        return response
+
+    def _get_result_object(self, workdir: str):
+        """Retrive the result object from the pickle file upload to S3 bucket after the lambda execution"""
+        key_exists = False
+        with self.get_session() as session:
+            s3_client = session.client('s3')
+            # There must be a timeout block for this (can be replaced via http calls with timeouts to the s3 api)
+            while not key_exists:
+                try:
+                    current_keys = [item['Key'] for item in s3_client.list_objects(Bucket=self.s3_bucket_name)['Contents']]
+                    if self.result_filename in current_keys:
+                        app_log.debug(f"Result object: {self.result_filename} found in {self.s3_bucket_name} bucket")
+                        key_exists = True
+                    else:
+                        time.sleep(0.1)
+                        continue
+                except botocore.exceptions.ClientError as ce:
+                    app_log.exception(ce)
+                    exit(1)
+
+            # Download file
+            try:
+                s3_client.download_file(self.s3_bucket_name, self.result_filename, os.path.join(workdir, self.result_filename))
+            except botocore.exceptions.ClientError as ce:
+                app_log.exception(ce)
+                exit(1)
+
+        with open(os.path.join(workdir, self.result_filename), "rb") as f:
+            result_object = pickle.load(f)
+
+        return result_object
+
+    def _cleanup(self) -> None:
+        """Delete all resources that were created for the purposes of the lambda execution
+        * Remove all resources from the S3 bucket
+        * Delete the lambda
+        """
+        app_log.debug(f"In cleanup")
+        with self.get_session() as session:
+            s3_resource = session.resource('s3')
+            try:
+                bucket = s3_resource.Bucket(self.s3_bucket_name)
+                bucket.objects.all().delete()
+                app_log.debug(f"All objects from bucket {self.s3_bucket_name} deleted")
+            except botocore.exceptions.ClientError as ce:
+                app_log.exception(ce)
+                exit(1)
+
+            lambda_client = session.client('lambda')
+            try:
+                response = lambda_client.delete_function(FunctionName=self.function_name)
+                app_log.debug(f"Lambda cleanup response: {response}")
+            except botocore.exceptions.ClientError as ce:
+                app_log.exception(ce)
+                exit(1)
+
+            # Cleanup 
+            if os.path.exists(self.workdir):
+                shutil.rmtree(self.workdir)
+
+
+    def run(self, function: Callable, args: List, kwargs: Dict, task_metadata: Dict):
+        # Pickle the callable, args and kwargs
+        self.dispatch_id = task_metadata['dispatch_id']
+        self.node_id = task_metadata['node_id']
+        self.workdir = os.path.join(self.cwd, self.dispatch_id)
+        app_log.debug(f"Creating transient files in {self.workdir}")
+
+        if not os.path.exists(self.workdir):
+            os.mkdir(self.workdir)
+
+        self.func_filename = f"func-{self.dispatch_id}-{self.node_id}.pkl"
+        self.result_filename = f"result-{self.dispatch_id}-{self.node_id}.pkl"
+        self.script_filename = f"lambda_function.py"
+
+        app_log.debug(f"Pickling function, args and kwargs..")
+        with open(os.path.join(self.workdir, self.func_filename), "wb") as f:
+            pickle.dump((function, args, kwargs), f)
+
+        app_log.debug(f"Uploading function to be executed to S3 bucket {self.s3_bucket_name}")
+        # Upload pickled file to s3 bucket created
+        with self.get_session() as session:
+            client = session.client('s3')
+            try:
+                with open(os.path.join(self.workdir, self.func_filename), "rb") as f:
+                    client.upload_fileobj(f, self.s3_bucket_name, self.func_filename)
+            except botocore.exceptions.ClientError as ce:
+                app_log.exception(ce)
+                exit(1)
+
+        # Create deployment package
+        app_log.warning(f"Creating deployment archive ...")
+        with DeploymentPackageBuilder(self.workdir, f"lambda-{self.dispatch_id}-{self.node_id}.zip", self.s3_bucket_name) as deployment_archive:
+            # Create the lambda handler script
+            exec_bldr = ExecScriptBuilder(func=function, args=args, kwargs=kwargs,
+                            func_filename=self.func_filename,
+                            result_filename=self.result_filename,
+                            script_filename=os.path.join(self.workdir, self.script_filename),
+                            s3_bucket = self.s3_bucket_name)
+            script_file = exec_bldr.setup()
+
+            # Add script to the deployment archive
+            with ZipFile(deployment_archive, mode='a') as archive:
+                archive.write(script_file, arcname=self.script_filename)
+
+            _, archive_name = os.path.split(deployment_archive)
+        
+            app_log.warning(f"Lambda deployment archive: {archive_name} created. Uploading to S3 ...")
+
+            # Upload archive to s3 bucket
+            with self.get_session() as session:
+                client = session.client('s3')
+                try:
+                    client.upload_file(deployment_archive, self.s3_bucket_name, archive_name)
+                except botocore.exceptions.ClientError as ce:
+                    app_log.exception(ce)
+                    exit(1)
+
+        # Create the lambda function
+        state = self._create_lambda()
+        app_log.warning(f"Created lambda function: {self.function_name}, state: {state}")
+
+        # Invoke the created lambda
+        lambda_invocation_response = self._invoke_lambda()
+        app_log.warning(f"Lambda function response: {lambda_invocation_response}")
+
+        # Download the result object
+        result_object = self._get_result_object(self.workdir)
+
+        # Cleanup
+        self._cleanup()
+
+        return result_object
