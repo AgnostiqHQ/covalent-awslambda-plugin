@@ -58,6 +58,7 @@ _EXECUTOR_PLUGIN_DEFAULTS = {
     "poll_freq": 5,
     "timeout": 60,
     "memory_size": 512,
+    "cleanup": True
 }
 
 
@@ -230,6 +231,7 @@ class AWSLambdaExecutor(BaseExecutor):
         poll_freq: int = 5,
         timeout: int = 60,
         memory_size: int = 512,
+        cleanup: bool = True,
         **kwargs,
     ) -> None:
         self.credentials = credentials
@@ -242,6 +244,7 @@ class AWSLambdaExecutor(BaseExecutor):
         self.poll_freq = poll_freq
         self.timeout = timeout
         self.memory_size = memory_size
+        self.cleanup = cleanup
 
         self.cwd = os.getcwd()
 
@@ -473,6 +476,7 @@ class AWSLambdaExecutor(BaseExecutor):
         result_object = self._get_result_object(self.workdir)
 
         # Cleanup
-        self._cleanup()
+        if self.cleanup:
+            self._cleanup()
 
         return result_object
