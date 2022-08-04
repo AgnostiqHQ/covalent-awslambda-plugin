@@ -33,13 +33,14 @@ from covalent_awslambda_plugin import AWSLambdaExecutor
 def lambda_executor():
     yield AWSLambdaExecutor(profile_name="default", region_name="us-east-1")
 
+
 def test_init(lambda_executor):
     """Test that initialization properly sets member variables."""
     assert lambda_executor.profile_name == "default"
     assert lambda_executor.region_name == "us-east-1"
 
 
-#def test_deserialization(mocker):
+# def test_deserialization(mocker):
 #    """Test that the input function is deserialized."""
 #
 #    executor = CustomExecutor(
@@ -68,7 +69,7 @@ def test_init(lambda_executor):
 #
 #    deserizlized_mock.assert_called_once()
 #
-#def test_function_call(mocker):
+# def test_function_call(mocker):
 #    """Test that the deserialized function is called with correct arguments."""
 #
 #    executor = CustomExecutor(
@@ -98,7 +99,7 @@ def test_init(lambda_executor):
 #
 #    simple_task.assert_called_once_with(5, kw_arg = 10)
 #
-#def test_final_result():
+# def test_final_result():
 #    """Functional test to check that the result of the function execution is as expected."""
 #
 #

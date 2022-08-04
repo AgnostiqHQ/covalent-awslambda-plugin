@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![covalent lambda plugin](AWS_20Lambda.jpg)
+![covalent lambda plugin](AWS_Lambda.jpg)
 
 &nbsp;
 
