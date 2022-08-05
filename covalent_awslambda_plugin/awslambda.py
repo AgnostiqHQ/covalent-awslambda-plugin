@@ -241,7 +241,7 @@ class AWSLambdaExecutor(BaseExecutor):
         self.region = region or get_config("executors.awslambda.region")
         self.s3_bucket_name = s3_bucket_name or get_config("executors.awslambda.s3_bucket_name")
         self.role_name = lambda_role_name or get_config('executors.awslambda.lambda_role_name')
-        self.cache_dir = os.path.join(os.environ['HOME'], '.cache/covalent')
+        self.cache_dir = cache_dir or os.path.join(os.environ['HOME'], '.cache/covalent')
         self.poll_freq = poll_freq or get_config('executors.awslambda.poll_freq')
         self.timeout = timeout or get_config('executors.awslambda.timeout')
         self.memory_size = memory_size or get_config('executors.awslambda.memory_size')
