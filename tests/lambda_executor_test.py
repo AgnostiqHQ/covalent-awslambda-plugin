@@ -23,6 +23,7 @@
 import os
 from contextlib import contextmanager
 
+import botocore.exceptions
 import pytest
 from mock import MagicMock
 
@@ -109,7 +110,7 @@ def test_function_pickle_dump(lambda_executor, mocker):
     pickle_dump_mock.assert_called_once()
 
 
-def test_function_pkl_upload_to_s3(lambda_executor, mocker):
+def test_upload_to_s3(lambda_executor, mocker):
     session_mock = mocker.patch(
         "covalent_awslambda_plugin.awslambda.AWSLambdaExecutor.get_session",
         return_value=MagicMock(),
@@ -135,87 +136,61 @@ def test_function_pkl_upload_to_s3(lambda_executor, mocker):
     session_mock.return_value.__enter__.return_value.client.return_value.upload_file.assert_called()
 
 
-# def test_deserialization(mocker):
-#    """Test that the input function is deserialized."""
-#
-#    executor = CustomExecutor(
-#        executor_input1 = "input1",
-#    )
-#
-#    def simple_task(x):
-#        return x
-#
-#    transport_function = TransportableObject(simple_task)
-#    deserizlized_mock = mocker.patch.object(
-#        transport_function,
-#        "get_deserialized",
-#        return_value = simple_task,
-#    )
-#
-#    executor.execute(
-#        function = transport_function,
-#        args = [5],
-#        kwargs = {},
-#        info_queue = MPQ(),
-#        task_id = 0,
-#        dispatch_id = 0,
-#        results_dir = "./",
-#    )
-#
-#    deserizlized_mock.assert_called_once()
-#
-# def test_function_call(mocker):
-#    """Test that the deserialized function is called with correct arguments."""
-#
-#    executor = CustomExecutor(
-#        executor_input1 = "input1",
-#    )
-#
-#    simple_task = mocker.MagicMock(return_value=0)
-#    simple_task.__name__ = "simple_task"
-#
-#    transport_function = TransportableObject(simple_task)
-#
-#    # This mock is so that the call to execute uses the same simple_task object that we
-#    # want to make sure is called.
-#    mocker.patch.object(transport_function, "get_deserialized", return_value = simple_task)
-#
-#    args = [5]
-#    kwargs = {"kw_arg": 10}
-#    executor.execute(
-#        function = transport_function,
-#        args = args,
-#        kwargs = kwargs,
-#        info_queue = MPQ(),
-#        task_id = 0,
-#        dispatch_id = 0,
-#        results_dir = "./",
-#    )
-#
-#    simple_task.assert_called_once_with(5, kw_arg = 10)
-#
-# def test_final_result():
-#    """Functional test to check that the result of the function execution is as expected."""
-#
-#
-#    executor = ct.executor.CustomExecutor(
-#        executor_input1 = "input1",
-#    )
-#
-#    @ct.electron(executor = executor)
-#    def simple_task(x):
-#        return x
-#
-#    @ct.lattice
-#    def sample_workflow(a):
-#        c = simple_task(a)
-#        return c
-#
-#    dispatch_id = ct.dispatch(sample_workflow)(5)
-#    print(dispatch_id)
-#    result = ct.get_result(dispatch_id=dispatch_id, wait=True)
-#    print(result)
-#
-#    # The custom executor has a doubling of each electron's result, for illustrative purporses.
-#    assert result.result == 10
-#
+def test_upload_fileobj_exception(lambda_executor, mocker):
+    session_mock = mocker.patch(
+        "covalent_awslambda_plugin.awslambda.AWSLambdaExecutor.get_session",
+        return_value=MagicMock(),
+    )
+
+    client_error_mock = botocore.exceptions.ClientError(MagicMock(), MagicMock())
+    session_mock.return_value.__enter__.return_value.client.return_value.upload_fileobj.side_effect = (
+        client_error_mock
+    )
+
+    mocker.patch("covalent_awslambda_plugin.awslambda.AWSLambdaExecutor._create_lambda")
+    mocker.patch("covalent_awslambda_plugin.awslambda.AWSLambdaExecutor._invoke_lambda")
+    mocker.patch("covalent_awslambda_plugin.awslambda.AWSLambdaExecutor._get_result_object")
+    mocker.patch("covalent_awslambda_plugin.awslambda.AWSLambdaExecutor._cleanup")
+    mocker.patch("covalent_awslambda_plugin.awslambda.os.path.exists")
+    mocker.patch("covalent_awslambda_plugin.awslambda.open")
+    mocker.patch("covalent_awslambda_plugin.awslambda.ZipFile")
+    mocker.patch("covalent_awslambda_plugin.awslambda.ExecScriptBuilder")
+    mocker.patch("covalent_awslambda_plugin.awslambda.DeploymentPackageBuilder")
+    mocker.patch("covalent_awslambda_plugin.awslambda.pickle.dump")
+    app_log_mock = mocker.patch("covalent_awslambda_plugin.awslambda.app_log")
+    exit_mock = mocker.patch("covalent_awslambda_plugin.awslambda.exit")
+
+    lambda_executor.run(MagicMock(), MagicMock(), MagicMock(), MagicMock())
+
+    app_log_mock.exception.assert_called_with(client_error_mock)
+    exit_mock.assert_called_with(1)
+
+
+def test_upload_file_exception(lambda_executor, mocker):
+    session_mock = mocker.patch(
+        "covalent_awslambda_plugin.awslambda.AWSLambdaExecutor.get_session",
+        return_value=MagicMock(),
+    )
+
+    client_error_mock = botocore.exceptions.ClientError(MagicMock(), MagicMock())
+    session_mock.return_value.__enter__.return_value.client.return_value.upload_file.side_effect = (
+        client_error_mock
+    )
+
+    mocker.patch("covalent_awslambda_plugin.awslambda.AWSLambdaExecutor._create_lambda")
+    mocker.patch("covalent_awslambda_plugin.awslambda.AWSLambdaExecutor._invoke_lambda")
+    mocker.patch("covalent_awslambda_plugin.awslambda.AWSLambdaExecutor._get_result_object")
+    mocker.patch("covalent_awslambda_plugin.awslambda.AWSLambdaExecutor._cleanup")
+    mocker.patch("covalent_awslambda_plugin.awslambda.os.path.exists")
+    mocker.patch("covalent_awslambda_plugin.awslambda.open")
+    mocker.patch("covalent_awslambda_plugin.awslambda.ZipFile")
+    mocker.patch("covalent_awslambda_plugin.awslambda.ExecScriptBuilder")
+    mocker.patch("covalent_awslambda_plugin.awslambda.DeploymentPackageBuilder")
+    mocker.patch("covalent_awslambda_plugin.awslambda.pickle.dump")
+    app_log_mock = mocker.patch("covalent_awslambda_plugin.awslambda.app_log")
+    exit_mock = mocker.patch("covalent_awslambda_plugin.awslambda.exit")
+
+    lambda_executor.run(MagicMock(), MagicMock(), MagicMock(), MagicMock())
+
+    app_log_mock.exception.assert_called_with(client_error_mock)
+    exit_mock.assert_called_with(1)
