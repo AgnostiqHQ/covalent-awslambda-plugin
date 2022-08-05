@@ -325,3 +325,20 @@ def test_invoke_lambda(lambda_executor, mocker):
 
     session_mock.return_value.__enter__.return_value.client.assert_called_with('lambda')
     session_mock.return_value.__enter__.return_value.client.return_value.invoke.assert_called_with(FunctionName=lambda_executor.function_name)
+
+
+def test_invoke_lambda_exeception(lambda_executor, mocker):
+    session_mock = mocker.patch(
+        "covalent_awslambda_plugin.awslambda.AWSLambdaExecutor.get_session",
+        return_value=MagicMock(),
+    )
+    app_log_mock = mocker.patch("covalent_awslambda_plugin.awslambda.app_log")
+    exit_mock = mocker.patch("covalent_awslambda_plugin.awslambda.exit")
+
+    client_error_mock = botocore.exceptions.ClientError(MagicMock(), MagicMock())
+    session_mock.return_value.__enter__.return_value.client.return_value.invoke.side_effect = client_error_mock
+
+    lambda_executor._invoke_lambda()
+
+    app_log_mock.exception.assert_called_with(client_error_mock)
+    exit_mock.assert_called_with(1)

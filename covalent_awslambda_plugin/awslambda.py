@@ -334,10 +334,10 @@ class AWSLambdaExecutor(BaseExecutor):
             client = session.client("lambda")
             try:
                 response = client.invoke(FunctionName=self.function_name)
+                return response
             except botocore.exceptions.ClientError as ce:
                 app_log.exception(ce)
                 exit(1)
-        return response
 
     def _get_result_object(self, workdir: str):
         """Retrive the result object from the pickle file upload to S3 bucket after the lambda execution"""
