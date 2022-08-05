@@ -285,7 +285,7 @@ def test_create_lambda_create_function_exception(lambda_executor, mocker):
     exit_mock.assert_called_with(1)
 
 
-def test__is_lambda_active_called(lambda_executor, mocker):
+def test_is_lambda_active_called(lambda_executor, mocker):
     session_mock = mocker.patch(
         "covalent_awslambda_plugin.awslambda.AWSLambdaExecutor.get_session",
         return_value=MagicMock(),
@@ -302,3 +302,15 @@ def test__is_lambda_active_called(lambda_executor, mocker):
     lambda_executor._create_lambda()
 
     lambda_executor._is_lambda_active.assert_called_once()
+
+
+def test_invoke_lambda(lambda_executor, mocker):
+    session_mock = mocker.patch(
+        "covalent_awslambda_plugin.awslambda.AWSLambdaExecutor.get_session",
+        return_value=MagicMock(),
+    )
+
+    lambda_executor._invoke_lambda()
+
+    session_mock.return_value.__enter__.return_value.client.assert_called_with('lambda')
+    session_mock.return_value.__enter__.return_value.client.return_value.invoke.assert_called_with(FunctionName=lambda_executor.function_name)
