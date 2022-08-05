@@ -234,12 +234,14 @@ class AWSLambdaExecutor(BaseExecutor):
         cleanup: bool = None,
         **kwargs,
     ) -> None:
+        super().__init__(cache_dir=cache_dir, **kwargs)
+
         self.credentials = credentials or get_config("executors.awslambda.credentials")
         self.profile = profile or get_config("executors.awslambda.profile")
         self.region = region or get_config("executors.awslambda.region")
         self.s3_bucket_name = s3_bucket_name or get_config("executors.awslambda.s3_bucket_name")
         self.role_name = lambda_role_name or get_config('executors.awslambda.lambda_role_name')
-        self.cache_dir = os.path.join(os.environ["HOME"], ".cache/covalent") or get_config('executors.awslambda.cache_dir')
+        self.cache_dir = os.path.join(os.environ['HOME'], '.cache/covalent')
         self.poll_freq = poll_freq or get_config('executors.awslambda.poll_freq')
         self.timeout = timeout or get_config('executors.awslambda.timeout')
         self.memory_size = memory_size or get_config('executors.awslambda.memory_size')
@@ -260,8 +262,6 @@ class AWSLambdaExecutor(BaseExecutor):
         os.environ["AWS_SHARED_CREDENTIALS_FILE"] = f"{self.credentials}"
         os.environ["AWS_PROFILE"] = f"{self.profile}"
         os.environ["AWS_REGION"] = f"{self.region}"
-
-        super().__init__(cache_dir=cache_dir, **kwargs)
 
     @contextmanager
     def get_session(self) -> Session:
