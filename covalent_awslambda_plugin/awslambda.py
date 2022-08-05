@@ -58,7 +58,7 @@ _EXECUTOR_PLUGIN_DEFAULTS = {
     "poll_freq": 5,
     "timeout": 60,
     "memory_size": 512,
-    "cleanup": True
+    "cleanup": True,
 }
 
 
@@ -207,7 +207,6 @@ class DeploymentPackageBuilder:
         return self.__deployment_archive
 
     def __exit__(self, exc_type, exc_value, exc_tb):
-        pass
         """Cleanup transient resources"""
         pass
 
@@ -227,7 +226,7 @@ class AWSLambdaExecutor(BaseExecutor):
         region: str,
         lambda_role_name: str,
         s3_bucket_name: str,
-        cache_dir: str,
+        cache_dir: str = os.path.join(os.environ["HOME"], ".cache/covalent"),
         poll_freq: int = 5,
         timeout: int = 60,
         memory_size: int = 512,
