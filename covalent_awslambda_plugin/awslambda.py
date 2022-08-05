@@ -38,6 +38,7 @@ from boto3.session import Session
 
 # Covalent logger
 from covalent._shared_files import logger
+from covalent._shared_files.config import get_config
 
 # All executor plugins inherit from the BaseExecutor base class.
 from covalent.executor import BaseExecutor
@@ -221,35 +222,30 @@ class AWSLambdaExecutor(BaseExecutor):
 
     def __init__(
         self,
-        credentials: str,
-        profile: str,
-        region: str,
-        lambda_role_name: str,
-        s3_bucket_name: str,
-        cache_dir: str = os.path.join(os.environ["HOME"], ".cache/covalent"),
-        poll_freq: int = 5,
-        timeout: int = 60,
-        memory_size: int = 512,
-        cleanup: bool = True,
+        credentials: str = None,
+        profile: str = None,
+        region: str = None,
+        lambda_role_name: str = None,
+        s3_bucket_name: str = None,
+        cache_dir: str = None,
+        poll_freq: int = None,
+        timeout: int = None,
+        memory_size: int = None,
+        cleanup: bool = None,
         **kwargs,
     ) -> None:
-        self.credentials = credentials
-        self.profile = profile
-        self.region = region
-
-        self.s3_bucket_name = s3_bucket_name
-        self.role_name = lambda_role_name
-        self.cache_dir = cache_dir
-        self.poll_freq = poll_freq
-        self.timeout = timeout
-        self.memory_size = memory_size
-        self.cleanup = cleanup
+        self.credentials = credentials or get_config("executors.awslambda.credentials")
+        self.profile = profile or get_config("executors.awslambda.profile")
+        self.region = region or get_config("executors.awslambda.region")
+        self.s3_bucket_name = s3_bucket_name or get_config("executors.awslambda.s3_bucket_name")
+        self.role_name = lambda_role_name or get_config('executors.awslambda.lambda_role_name')
+        self.cache_dir = os.path.join(os.environ["HOME"], ".cache/covalent") or get_config('executors.awslambda.cache_dir')
+        self.poll_freq = poll_freq or get_config('executors.awslambda.poll_freq')
+        self.timeout = timeout or get_config('executors.awslambda.timeout')
+        self.memory_size = memory_size or get_config('executors.awslambda.memory_size')
+        self.cleanup = cleanup or get_config('executors.awslambda.cleanup')
 
         self.cwd = os.getcwd()
-
-        os.environ["AWS_SHARED_CREDENTIALS_FILE"] = f"{self.credentials}"
-        os.environ["AWS_PROFILE"] = f"{self.profile}"
-        os.environ["AWS_REGION"] = f"{self.region}"
 
         self.func_filename = ""
         self.result_filename = ""
@@ -259,6 +255,11 @@ class AWSLambdaExecutor(BaseExecutor):
         self.function_name = ""
         self.workdir = ""
         self.role_arn = ""
+
+        # Set cloud environment variables
+        os.environ["AWS_SHARED_CREDENTIALS_FILE"] = f"{self.credentials}"
+        os.environ["AWS_PROFILE"] = f"{self.profile}"
+        os.environ["AWS_REGION"] = f"{self.region}"
 
         super().__init__(cache_dir=cache_dir, **kwargs)
 
