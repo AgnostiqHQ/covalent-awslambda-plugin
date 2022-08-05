@@ -258,12 +258,31 @@ class AWSLambdaExecutor(BaseExecutor):
         self.node_id = None
         self.function_name = ""
         self.workdir = ""
+        self.role_arn = ""
 
         super().__init__(cache_dir=cache_dir, **kwargs)
 
     @contextmanager
     def get_session(self) -> Session:
         yield boto3.Session(profile_name=self.profile, region_name=self.region)
+
+    def _is_lambda_active(self):
+        """Returns True if lambda is in the active state"""
+        # Check if lambda is active
+        is_active = False
+        with self.get_session() as session:
+            lambda_client = session.client('lambda')
+            while not is_active:
+                lambda_state = lambda_client.get_function(FunctionName=self.function_name)
+                app_log.debug(
+                    f"Lambda function {self.function_name} state: {lambda_state['Configuration']['State']}"
+                )
+                if lambda_state["Configuration"]["State"] == "Active":
+                    is_active = True
+                else:
+                    time.sleep(0.1)
+                    continue
+        return is_active
 
     def _create_lambda(self) -> Dict:
         """Create the lambda function"""
@@ -273,7 +292,7 @@ class AWSLambdaExecutor(BaseExecutor):
             iam_client = session.client("iam")
             try:
                 response = iam_client.get_role(RoleName=f"{self.role_name}")
-                role_arn = response["Role"]["Arn"]
+                self.role_arn = response["Role"]["Arn"]
             except botocore.exceptions.ClientError as ce:
                 app_log.exception(ce)
                 exit(1)
@@ -281,7 +300,7 @@ class AWSLambdaExecutor(BaseExecutor):
         lambda_create_kwargs = {
             "FunctionName": f"{self.function_name}",
             "Runtime": "python3.8",
-            "Role": f"{role_arn}",
+            "Role": f"{self.role_arn}",
             "Handler": "lambda_function.lambda_handler",
             "Code": {
                 "S3Bucket": f"{self.s3_bucket_name}",
@@ -305,18 +324,7 @@ class AWSLambdaExecutor(BaseExecutor):
                 exit(1)
 
         # Check if lambda is active
-        is_active = False
-        while not is_active:
-            lambda_state = lambda_client.get_function(FunctionName=self.function_name)
-            app_log.debug(
-                f"Lambda funciton {self.function_name} state: {lambda_state['Configuration']['State']}"
-            )
-            if lambda_state["Configuration"]["State"] == "Active":
-                is_active = True
-            else:
-                time.sleep(0.1)
-                continue
-
+        lambda_state = 'Active' if self._is_lambda_active() else None
         return lambda_state
 
     def _invoke_lambda(self) -> Dict:
