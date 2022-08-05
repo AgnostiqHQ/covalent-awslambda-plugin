@@ -20,12 +20,14 @@
 
 """Tests for Covalent AWSLambda executor"""
 
+from http import client
 import os
 from contextlib import contextmanager
+from unittest.mock import MagicMixin
 
 import botocore.exceptions
 import pytest
-from mock import MagicMock
+from mock import MagicMock, call
 
 from covalent_awslambda_plugin import AWSLambdaExecutor
 
@@ -194,3 +196,109 @@ def test_upload_file_exception(lambda_executor, mocker):
 
     app_log_mock.exception.assert_called_with(client_error_mock)
     exit_mock.assert_called_with(1)
+
+def test_create_lambda_iam_get_role(lambda_executor, mocker):
+    session_mock = mocker.patch(
+        "covalent_awslambda_plugin.awslambda.AWSLambdaExecutor.get_session",
+        return_value=MagicMock(),
+    )
+    lambda_executor._is_lambda_active = MagicMock(return_value=True)
+    lambda_executor.dispatch_id = "abcd"
+    lambda_executor.node_id = "1"
+    lambda_executor.function_name = "xyz"
+
+    lambda_executor._create_lambda()
+
+    assert session_mock.call_count == 2
+    session_mock.return_value.__enter__.assert_called()
+    session_mock.return_value.__enter__.return_value.client.assert_has_calls([call('iam')])
+    session_mock.return_value.__enter__.return_value.client.assert_has_calls([call('lambda')])
+    session_mock.return_value.__enter__.return_value.client.return_value.get_role.assert_called_with(RoleName=lambda_executor.role_name)
+
+def test_create_lambda_iam_get_role_exection(lambda_executor, mocker):
+    session_mock = mocker.patch(
+        "covalent_awslambda_plugin.awslambda.AWSLambdaExecutor.get_session",
+        return_value=MagicMock(),
+    )
+    lambda_executor._is_lambda_active = MagicMock(return_value=True)
+    lambda_executor.dispatch_id = "abcd"
+    lambda_executor.node_id = "1"
+    lambda_executor.function_name = "xyz"
+    lambda_executor.role_arn = "test_arn"
+    client_error_mock = botocore.exceptions.ClientError(MagicMock(), MagicMock())
+    session_mock.return_value.__enter__.return_value.client.return_value.get_role.return_value = MagicMock()
+
+    session_mock.return_value.__enter__.return_value.client.return_value.get_role.side_effect = client_error_mock
+    app_log_mock = mocker.patch("covalent_awslambda_plugin.awslambda.app_log")
+    exit_mock = mocker.patch("covalent_awslambda_plugin.awslambda.exit")
+
+    lambda_executor._create_lambda()
+
+    app_log_mock.exception.assert_called_with(client_error_mock)
+    session_mock.return_value.__enter__.return_value.client.return_value.get_role.assert_called()
+    exit_mock.assert_called_with(1)
+
+def test_create_lambda_create_function(lambda_executor, mocker):
+    session_mock = mocker.patch(
+        "covalent_awslambda_plugin.awslambda.AWSLambdaExecutor.get_session",
+        return_value=MagicMock(),
+    )
+    lambda_executor._is_lambda_active = MagicMock(return_value=True)
+    lambda_executor.dispatch_id = "abcd"
+    lambda_executor.node_id = "1"
+    lambda_executor.function_name = "xyz"
+    lambda_executor.role_arn = "test_arn"
+    session_mock.return_value.__enter__.return_value.client.return_value.get_role.return_value = MagicMock()
+    app_log_mock = mocker.patch("covalent_awslambda_plugin.awslambda.app_log")
+
+
+    lambda_executor._create_lambda()
+
+    session_mock.return_value.__enter__.return_value.client.assert_called_with('lambda')
+    session_mock.return_value.__enter__.return_value.client.return_value.create_function.assert_called()
+    app_log_mock.warning.assert_called()
+
+
+def test_create_lambda_create_function_exception(lambda_executor, mocker):
+    session_mock = mocker.patch(
+        "covalent_awslambda_plugin.awslambda.AWSLambdaExecutor.get_session",
+        return_value=MagicMock(),
+    )
+    lambda_executor._is_lambda_active = MagicMock(return_value=True)
+    lambda_executor.dispatch_id = "abcd"
+    lambda_executor.node_id = "1"
+    lambda_executor.function_name = "xyz"
+    lambda_executor.role_arn = "test_arn"
+    session_mock.return_value.__enter__.return_value.client.return_value.get_role.return_value = MagicMock()
+    app_log_mock = mocker.patch("covalent_awslambda_plugin.awslambda.app_log")
+    exit_mock = mocker.patch("covalent_awslambda_plugin.awslambda.exit")
+
+    client_error_mock = botocore.exceptions.ClientError(MagicMock(), MagicMock())
+    session_mock.return_value.__enter__.return_value.client.return_value.create_function.side_effect = client_error_mock
+
+
+    lambda_executor._create_lambda()
+
+    session_mock.return_value.__enter__.return_value.client.assert_called_with('lambda')
+    assert not app_log_mock.warning.called
+    app_log_mock.exception.assert_called_with(client_error_mock)
+    exit_mock.assert_called_with(1)
+
+
+def test__is_lambda_active_called(lambda_executor, mocker):
+    session_mock = mocker.patch(
+        "covalent_awslambda_plugin.awslambda.AWSLambdaExecutor.get_session",
+        return_value=MagicMock(),
+    )
+    lambda_executor._is_lambda_active = MagicMock(return_value=True)
+    lambda_executor.dispatch_id = "abcd"
+    lambda_executor.node_id = "1"
+    lambda_executor.function_name = "xyz"
+    lambda_executor.role_arn = "test_arn"
+    session_mock.return_value.__enter__.return_value.client.return_value.get_role.return_value = MagicMock()
+
+    lambda_executor._is_lambda_active = MagicMock()
+
+    lambda_executor._create_lambda()
+
+    lambda_executor._is_lambda_active.assert_called_once()
