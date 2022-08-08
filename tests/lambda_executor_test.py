@@ -459,7 +459,7 @@ def test_cleanup(lambda_executor, mocker):
 
     lambda_executor._cleanup()
 
-    assert app_log_mock.debug.call_count == 3
+    assert app_log_mock.debug.call_count == 2
     s3_resource_mock.assert_called_with('s3')
     s3_resource_bucket_mock.assert_called_with(lambda_executor.s3_bucket_name)
     bucket_mock.assert_called()
@@ -480,15 +480,27 @@ def test_cleanup_exception(lambda_executor, mocker):
     lambda_executor.function_name = "test_function"
 
     s3_resource_mock = session_mock.return_value.__enter__.return_value.resource
-    s3_resource_bucket_mock = s3_resource_mock.return_value.Bucket
-    bucket_mock = s3_resource_bucket_mock.return_value.objects.all.return_value.delete
+    bucket_objects_delete_mock = s3_resource_mock.return_value.Bucket.return_value.objects.all.return_value.delete
     client_error_mock = botocore.exceptions.ClientError(MagicMock(), MagicMock())
-    bucket_mock.side_effect = client_error_mock
+    bucket_objects_delete_mock.side_effect = client_error_mock
     client_mock = session_mock.return_value.__enter__.return_value.client
     lambda_client_mock = client_mock.return_value
-
-
+    lambda_delete_function_mock = lambda_client_mock.delete_function
+    lambda_delete_function_mock.side_effect = client_error_mock
     app_log_mock = mocker.patch("covalent_awslambda_plugin.awslambda.app_log")
+    exit_mock = mocker.patch("covalent_awslambda_plugin.awslambda.exit")
+    os_path_exists_mock = mocker.patch("covalent_awslambda_plugin.awslambda.os.path.exists", return_value=True)
+    shutil_rmtree_mock = mocker.patch("covalent_awslambda_plugin.awslambda.shutil.rmtree")
 
+    lambda_executor._cleanup()
+
+    s3_resource_mock.assert_called_once_with('s3')
+    bucket_objects_delete_mock.assert_called_once()
     app_log_mock.exception.assert_called_with(client_error_mock)
-
+    exit_mock.assert_called_with(1)
+    client_mock.assert_called_once_with('lambda')
+    lambda_delete_function_mock.assert_called_with(FunctionName=lambda_executor.function_name)
+    assert app_log_mock.exception.call_count == 2
+    assert exit_mock.call_count == 2
+    os_path_exists_mock.assert_called_once()
+    shutil_rmtree_mock.assert_called_once()

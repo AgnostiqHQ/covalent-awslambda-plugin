@@ -392,8 +392,7 @@ class AWSLambdaExecutor(BaseExecutor):
         with self.get_session() as session:
             s3_resource = session.resource("s3")
             try:
-                bucket = s3_resource.Bucket(self.s3_bucket_name)
-                bucket.objects.all().delete()
+                s3_resource.Bucket(self.s3_bucket_name).objects.all().delete()
                 app_log.debug(f"All objects from bucket {self.s3_bucket_name} deleted")
             except botocore.exceptions.ClientError as ce:
                 app_log.exception(ce)
@@ -410,8 +409,6 @@ class AWSLambdaExecutor(BaseExecutor):
             # Cleanup
             if os.path.exists(self.workdir):
                 shutil.rmtree(self.workdir)
-
-        app_log.debug(f"All transient resources cleaned up")
 
     def run(self, function: Callable, args: List, kwargs: Dict, task_metadata: Dict):
         # Pickle the callable, args and kwargs
