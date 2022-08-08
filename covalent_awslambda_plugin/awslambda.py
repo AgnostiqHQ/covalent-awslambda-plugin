@@ -18,8 +18,6 @@
 #
 # Relief from the License may be granted by purchasing a commercial license.
 
-"""This is an example of a custom Covalent executor plugin."""
-
 import os
 import pathlib
 import shutil
@@ -258,6 +256,8 @@ class AWSLambdaExecutor(BaseExecutor):
         self.workdir = ""
         self.role_arn = ""
 
+        self._key_exists = False
+
         # Set cloud environment variables
         os.environ["AWS_SHARED_CREDENTIALS_FILE"] = f"{self.credentials}"
         os.environ["AWS_PROFILE"] = f"{self.profile}"
@@ -339,40 +339,45 @@ class AWSLambdaExecutor(BaseExecutor):
                 app_log.exception(ce)
                 exit(1)
 
-    def _get_result_object(self, workdir: str):
-        """Retrive the result object from the pickle file upload to S3 bucket after the lambda execution"""
-        key_exists = False
+    def _is_key_in_bucket(self):
+        """Return true if file/key found in s3 bucket"""
         with self.get_session() as session:
-            s3_client = session.client("s3")
-            # There must be a timeout block for this (can be replaced via http calls with timeouts to the s3 api)
-            while not key_exists:
-                try:
-                    current_keys = [
-                        item["Key"]
-                        for item in s3_client.list_objects(Bucket=self.s3_bucket_name)["Contents"]
-                    ]
-                    if self.result_filename in current_keys:
-                        app_log.debug(
-                            f"Result object: {self.result_filename} found in {self.s3_bucket_name} bucket"
-                        )
-                        key_exists = True
-                    else:
-                        time.sleep(0.1)
-                        continue
-                except botocore.exceptions.ClientError as ce:
-                    app_log.exception(ce)
-                    exit(1)
-
-            # Download file
+            s3_client = session.client('s3')
             try:
-                s3_client.download_file(
-                    self.s3_bucket_name,
-                    self.result_filename,
-                    os.path.join(workdir, self.result_filename),
-                )
+                current_keys = [
+                    item['Key'] for item in s3_client.list_objects(Bucket=self.s3_bucket_name)['Contents']
+                ]
+                if self.result_filename in current_keys:
+                    app_log.debug(
+                        f"Result object: {self.result_filename} found in {self.s3_bucket_name} bucket"
+                    )
+                    return True
+                else:
+                    return False
             except botocore.exceptions.ClientError as ce:
                 app_log.exception(ce)
                 exit(1)
+
+    def _get_result_object(self, workdir: str):
+        """Retrive the result object from the pickle file upload to S3 bucket after the lambda execution"""
+        with self.get_session() as session:
+            while not self._key_exists:
+                self._key_exists = self._is_key_in_bucket()
+                time.sleep(0.1)
+
+        if self._key_exists:
+            with self.get_session() as session:
+                s3_client = session.client('s3')
+                # Download file
+                try:
+                    s3_client.download_file(
+                        self.s3_bucket_name,
+                        self.result_filename,
+                        os.path.join(workdir, self.result_filename),
+                    )
+                except botocore.exceptions.ClientError as ce:
+                    app_log.exception(ce)
+                    exit(1)
 
         with open(os.path.join(workdir, self.result_filename), "rb") as f:
             result_object = pickle.load(f)
@@ -384,7 +389,6 @@ class AWSLambdaExecutor(BaseExecutor):
         * Remove all resources from the S3 bucket
         * Delete the lambda
         """
-        app_log.debug("In cleanup")
         with self.get_session() as session:
             s3_resource = session.resource("s3")
             try:
@@ -406,6 +410,8 @@ class AWSLambdaExecutor(BaseExecutor):
             # Cleanup
             if os.path.exists(self.workdir):
                 shutil.rmtree(self.workdir)
+
+        app_log.debug(f"All transient resources cleaned up")
 
     def run(self, function: Callable, args: List, kwargs: Dict, task_metadata: Dict):
         # Pickle the callable, args and kwargs
