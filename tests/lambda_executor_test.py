@@ -20,15 +20,10 @@
 
 """Tests for Covalent AWSLambda executor"""
 
-from http import client
 import os
-from contextlib import contextmanager
-from unittest.mock import MagicMixin
-
 import botocore.exceptions
 import pytest
 from mock import MagicMock, call
-
 from covalent_awslambda_plugin import AWSLambdaExecutor
 
 
@@ -46,7 +41,6 @@ def lambda_executor():
         memory_size = 512,
         cleanup = True
     )
-
 
 def test_init():
     awslambda = AWSLambdaExecutor(
@@ -77,7 +71,6 @@ def test_init():
     assert os.environ["AWS_PROFILE"] == awslambda.profile
     assert os.environ["AWS_REGION"] == awslambda.region
 
-
 def test_workdir_create(lambda_executor, mocker):
     lambda_executor.get_session = MagicMock()
     lambda_executor._create_lambda = MagicMock()
@@ -101,7 +94,6 @@ def test_workdir_create(lambda_executor, mocker):
     os_path_exists_mock.assert_called_once()
     os_mkdir_mock.assert_called_once()
 
-
 def test_function_pickle_dump(lambda_executor, mocker):
     lambda_executor.get_session = MagicMock()
     lambda_executor._create_lambda = MagicMock()
@@ -121,7 +113,6 @@ def test_function_pickle_dump(lambda_executor, mocker):
 
     lambda_executor.run(MagicMock(), MagicMock(), MagicMock(), MagicMock())
     pickle_dump_mock.assert_called_once()
-
 
 def test_upload_to_s3(lambda_executor, mocker):
     session_mock = mocker.patch(
@@ -147,7 +138,6 @@ def test_upload_to_s3(lambda_executor, mocker):
     session_mock.return_value.__enter__.return_value.client.assert_called_with("s3")
     session_mock.return_value.__enter__.return_value.client.return_value.upload_fileobj.assert_called()
     session_mock.return_value.__enter__.return_value.client.return_value.upload_file.assert_called()
-
 
 def test_upload_fileobj_exception(lambda_executor, mocker):
     session_mock = mocker.patch(
@@ -177,7 +167,6 @@ def test_upload_fileobj_exception(lambda_executor, mocker):
 
     app_log_mock.exception.assert_called_with(client_error_mock)
     exit_mock.assert_called_with(1)
-
 
 def test_upload_file_exception(lambda_executor, mocker):
     session_mock = mocker.patch(
@@ -269,7 +258,6 @@ def test_create_lambda_create_function(lambda_executor, mocker):
     session_mock.return_value.__enter__.return_value.client.return_value.create_function.assert_called()
     app_log_mock.warning.assert_called()
 
-
 def test_create_lambda_create_function_exception(lambda_executor, mocker):
     session_mock = mocker.patch(
         "covalent_awslambda_plugin.awslambda.AWSLambdaExecutor.get_session",
@@ -295,12 +283,12 @@ def test_create_lambda_create_function_exception(lambda_executor, mocker):
     app_log_mock.exception.assert_called_with(client_error_mock)
     exit_mock.assert_called_with(1)
 
-
 def test_is_lambda_active_called(lambda_executor, mocker):
     session_mock = mocker.patch(
         "covalent_awslambda_plugin.awslambda.AWSLambdaExecutor.get_session",
         return_value=MagicMock(),
     )
+
     lambda_executor._is_lambda_active = MagicMock(return_value=True)
     lambda_executor.dispatch_id = "abcd"
     lambda_executor.node_id = "1"
@@ -314,7 +302,6 @@ def test_is_lambda_active_called(lambda_executor, mocker):
 
     lambda_executor._is_lambda_active.assert_called_once()
 
-
 def test_invoke_lambda(lambda_executor, mocker):
     session_mock = mocker.patch(
         "covalent_awslambda_plugin.awslambda.AWSLambdaExecutor.get_session",
@@ -325,7 +312,6 @@ def test_invoke_lambda(lambda_executor, mocker):
 
     session_mock.return_value.__enter__.return_value.client.assert_called_with('lambda')
     session_mock.return_value.__enter__.return_value.client.return_value.invoke.assert_called_with(FunctionName=lambda_executor.function_name)
-
 
 def test_invoke_lambda_exeception(lambda_executor, mocker):
     session_mock = mocker.patch(
@@ -342,3 +328,167 @@ def test_invoke_lambda_exeception(lambda_executor, mocker):
 
     app_log_mock.exception.assert_called_with(client_error_mock)
     exit_mock.assert_called_with(1)
+
+def test_is_key_in_bucket(lambda_executor, mocker):
+    session_mock = mocker.patch(
+        "covalent_awslambda_plugin.awslambda.AWSLambdaExecutor.get_session",
+        return_value=MagicMock(),
+    )
+
+    lambda_executor.result_filename = "test_file"
+    lambda_executor.s3_bucket_name = 'test_bucket'
+
+    session_client_mock = session_mock.return_value.__enter__.return_value.client
+    s3_client_list_objects_mock = session_mock.return_value.__enter__.return_value.client.return_value.list_objects
+    s3_client_list_objects_mock.return_value = {'Contents': [{'Key': 'test_file'}]}
+    app_log_mock = mocker.patch("covalent_awslambda_plugin.awslambda.app_log")
+
+    lambda_executor._is_key_in_bucket()
+
+    session_client_mock.assert_called_with('s3')
+    s3_client_list_objects_mock.assert_called_with(Bucket=lambda_executor.s3_bucket_name)
+    app_log_mock.debug.assert_called_with(f"Result object: {lambda_executor.result_filename} found in {lambda_executor.s3_bucket_name} bucket")
+
+def test_is_key_in_bucket_else_path(lambda_executor, mocker):
+    session_mock = mocker.patch(
+        "covalent_awslambda_plugin.awslambda.AWSLambdaExecutor.get_session",
+        return_value=MagicMock(),
+    )
+
+    lambda_executor.result_filename = "test_file"
+    lambda_executor._key_exists = False
+    lambda_executor.s3_bucket_name = 'test_bucket'
+
+    session_client_mock = session_mock.return_value.__enter__.return_value.client
+    s3_client_list_objects_mock = session_mock.return_value.__enter__.return_value.client.return_value.list_objects
+    s3_client_list_objects_mock.return_value = {'Contents': [{'Key': 'not_test_file'}]}
+
+    lambda_executor._is_key_in_bucket()
+
+    session_client_mock.assert_called_with('s3')
+    s3_client_list_objects_mock.assert_called_with(Bucket=lambda_executor.s3_bucket_name)
+    assert not lambda_executor._key_exists
+
+def test_get_result_object(lambda_executor, mocker):
+    lambda_executor.s3_bucket_name = "test_bucket"
+    lambda_executor.result_filename = "test_file"
+    workdir = "test_dir"
+
+    session_mock = mocker.patch(
+        "covalent_awslambda_plugin.awslambda.AWSLambdaExecutor.get_session",
+        return_value=MagicMock(),
+    )
+    time_sleep_mock = mocker.patch("covalent_awslambda_plugin.awslambda.time.sleep")
+    session_client_mock = session_mock.return_value.__enter__.return_value.client
+    s3_client_mock = session_client_mock.return_value.download_file
+    open_mock = mocker.patch("covalent_awslambda_plugin.awslambda.open")
+    pickle_load_mock = mocker.patch("covalent_awslambda_plugin.awslambda.pickle.load")
+
+    lambda_executor._key_exists = False
+    lambda_executor._is_key_in_bucket = MagicMock(return_value=True)
+
+    lambda_executor._get_result_object(workdir)
+
+    time_sleep_mock.assert_called_with(0.1)
+    assert lambda_executor._key_exists
+    session_client_mock.assert_called_once_with('s3')
+    s3_client_mock.assert_called_once_with(lambda_executor.s3_bucket_name,
+        lambda_executor.result_filename,
+        os.path.join(workdir, lambda_executor.result_filename))
+    open_mock.assert_called_once_with(os.path.join(workdir, lambda_executor.result_filename), "rb")
+    pickle_load_mock.assert_called_once_with(open_mock.return_value.__enter__.return_value)
+
+def test_get_result_object_execption(lambda_executor, mocker):
+    lambda_executor.s3_bucket_name = "test_bucket"
+    lambda_executor.result_filename = "test_file"
+    workdir = "test_dir"
+
+    session_mock = mocker.patch(
+        "covalent_awslambda_plugin.awslambda.AWSLambdaExecutor.get_session",
+        return_value=MagicMock(),
+    )
+
+    time_sleep_mock = mocker.patch("covalent_awslambda_plugin.awslambda.time.sleep")
+    session_client_mock = session_mock.return_value.__enter__.return_value.client
+    s3_client_mock = session_client_mock.return_value.download_file
+    client_error_mock = botocore.exceptions.ClientError(MagicMock(), MagicMock())
+    s3_client_mock.side_effect = client_error_mock
+
+    open_mock = mocker.patch("covalent_awslambda_plugin.awslambda.open")
+    pickle_load_mock = mocker.patch("covalent_awslambda_plugin.awslambda.pickle.load")
+    app_log_mock = mocker.patch("covalent_awslambda_plugin.awslambda.app_log")
+    exit_mock = mocker.patch("covalent_awslambda_plugin.awslambda.exit")
+
+    lambda_executor._key_exists = False
+    lambda_executor._is_key_in_bucket = MagicMock(return_value=True)
+
+    lambda_executor._get_result_object(workdir)
+
+    time_sleep_mock.assert_called_with(0.1)
+    assert lambda_executor._key_exists
+    session_client_mock.assert_called_once_with('s3')
+
+    s3_client_mock.assert_called_once_with(lambda_executor.s3_bucket_name,
+        lambda_executor.result_filename,
+        os.path.join(workdir, lambda_executor.result_filename))
+
+    app_log_mock.exception.assert_called_once_with(client_error_mock)
+    exit_mock.assert_called_once_with(1)
+    open_mock.assert_called_once_with(os.path.join(workdir, lambda_executor.result_filename), "rb")
+    pickle_load_mock.assert_called_once_with(open_mock.return_value.__enter__.return_value)
+
+def test_cleanup(lambda_executor, mocker):
+    session_mock = mocker.patch(
+        "covalent_awslambda_plugin.awslambda.AWSLambdaExecutor.get_session",
+        return_value=MagicMock(),
+    )
+
+    lambda_executor.s3_bucket_name = "test_bucket"
+    lambda_executor.workdir = "test_workdir"
+    lambda_executor.function_name = "test_function"
+
+    s3_resource_mock = session_mock.return_value.__enter__.return_value.resource
+    s3_resource_bucket_mock = s3_resource_mock.return_value.Bucket
+    bucket_mock = s3_resource_bucket_mock.return_value.objects.all.return_value.delete
+    client_mock = session_mock.return_value.__enter__.return_value.client
+    lambda_client_mock = client_mock.return_value
+
+    app_log_mock = mocker.patch("covalent_awslambda_plugin.awslambda.app_log")
+    os_path_exists_mock = mocker.patch("covalent_awslambda_plugin.awslambda.os.path.exists", return_value = True)
+    shutil_rmtree_mock = mocker.patch("covalent_awslambda_plugin.awslambda.shutil.rmtree")
+
+    lambda_executor._cleanup()
+
+    assert app_log_mock.debug.call_count == 3
+    s3_resource_mock.assert_called_with('s3')
+    s3_resource_bucket_mock.assert_called_with(lambda_executor.s3_bucket_name)
+    bucket_mock.assert_called()
+    client_mock.assert_called_once_with('lambda')
+    lambda_client_mock.delete_function.assert_called_once_with(FunctionName=lambda_executor.function_name)
+    os_path_exists_mock.assert_called_once_with(lambda_executor.workdir)
+    shutil_rmtree_mock.assert_called_once_with(lambda_executor.workdir)
+
+
+def test_cleanup_exception(lambda_executor, mocker):
+    session_mock = mocker.patch(
+        "covalent_awslambda_plugin.awslambda.AWSLambdaExecutor.get_session",
+        return_value=MagicMock(),
+    )
+
+    lambda_executor.s3_bucket_name = "test_bucket"
+    lambda_executor.workdir = "test_workdir"
+    lambda_executor.function_name = "test_function"
+
+    s3_resource_mock = session_mock.return_value.__enter__.return_value.resource
+    s3_resource_bucket_mock = s3_resource_mock.return_value.Bucket
+    bucket_mock = s3_resource_bucket_mock.return_value.objects.all.return_value.delete
+    client_error_mock = botocore.exceptions.ClientError(MagicMock(), MagicMock())
+    bucket_mock.side_effect = client_error_mock
+    client_mock = session_mock.return_value.__enter__.return_value.client
+    lambda_client_mock = client_mock.return_value
+
+
+    app_log_mock = mocker.patch("covalent_awslambda_plugin.awslambda.app_log")
+
+    app_log_mock.exception.assert_called_with(client_error_mock)
+
