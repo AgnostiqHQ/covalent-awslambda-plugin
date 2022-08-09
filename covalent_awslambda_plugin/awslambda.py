@@ -150,7 +150,7 @@ class AWSLambdaExecutor(BaseExecutor):
         poll_freq: int = None,
         timeout: int = None,
         memory_size: int = None,
-        cleanup: bool = None,
+        cleanup: bool = False,
         **kwargs,
     ) -> None:
         super().__init__(cache_dir=cache_dir, **kwargs)
@@ -164,7 +164,7 @@ class AWSLambdaExecutor(BaseExecutor):
         self.poll_freq = poll_freq or get_config('executors.awslambda.poll_freq')
         self.timeout = timeout or get_config('executors.awslambda.timeout')
         self.memory_size = memory_size or get_config('executors.awslambda.memory_size')
-        self.cleanup = cleanup or get_config('executors.awslambda.cleanup')
+        self.cleanup = cleanup
         self._cwd = os.getcwd()
         self._key_exists = False
 
