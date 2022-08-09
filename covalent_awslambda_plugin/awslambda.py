@@ -58,7 +58,7 @@ _EXECUTOR_PLUGIN_DEFAULTS = {
     "poll_freq": 5,
     "timeout": 60,
     "memory_size": 512,
-    "cleanup": True,
+    "cleanup": False,
 }
 
 LAMBDA_FUNCTION_NAME = "lambda-{dispatch_id}-{node_id}"
@@ -86,7 +86,6 @@ class DeploymentPackageBuilder:
                     "install",
                     "--target",
                     self.target_dir,
-                    "--upgrade",
                     pkg_name,
                     "--pre",
                 ],
