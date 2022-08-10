@@ -78,7 +78,14 @@ Covalent is a Pythonic workflow tool used to execute tasks on advanced computing
 }
 ```
 
-where `<bucket-name>` is the name of the S3 bucket configured to the Lambda executor to upload and download objects from. The default bucket name is set to `covalent-lambda-job-resources` and it must be present prior to running the executor.
+where `<bucket-name>` is the name of the S3 bucket configured to the Lambda executor to upload and download objects from. The default bucket name is set to `covalent-lambda-job-resources` and it must be present prior to running the executor. The S3 bucket can either be created using the `awscli` or with the AWS web console.
+To create a S3 bucket using the AWS CLI, the following can be used
+
+```sh
+pip install awscli
+aws configure
+aws s3api create-bucket --bucket `my-s3-bucket-for-covalent` --region `us-east-1`
+```
 
 Secondly, the lambda function created by this executor on AWS also needs an IAM role with suitable permisisons to execute. By default, this executor assumes there exists a IAM role `CovalentLambdaExecutionRole` with the `AWSLambdaExecute` execute policy attached to it. The policy document is summarized here for convenience
 
@@ -104,6 +111,7 @@ Secondly, the lambda function created by this executor on AWS also needs an IAM 
     ]
 }
 ```
+
 
 To use this plugin with Covalent, users can either clone this repository or install it via `pip install covalent-awslambda-plugin`. If the repository is cloned, the plugin can be installed as follows
 
