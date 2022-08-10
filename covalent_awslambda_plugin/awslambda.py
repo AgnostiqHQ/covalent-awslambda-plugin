@@ -69,6 +69,13 @@ LAMBDA_FUNCTION_SCRIPT_NAME = "lambda_function.py"
 
 
 class DeploymentPackageBuilder:
+    """AWS Lambda deployment package (zip archive) builder
+
+    Args:
+        directory: Path to local filesystem on where to store the archive
+        archive_name: Name of the deployment archive
+        s3_bucket_name: Name of the AWS S3 bucket to be used to cache the deployment package
+    """
     def __init__(self, directory: str, archive_name: str, s3_bucket_name: str):
         self.directory = directory
         self.archive_name = archive_name
@@ -77,6 +84,15 @@ class DeploymentPackageBuilder:
         self.deployment_archive = os.path.join(self.directory, self.archive_name)
 
     def install(self, pkg_name: str, pre: bool = False):
+        """Install the necessary Python packages into the specified target directory
+
+        Args:
+            pkg_name: Name of the Python package to be installed
+            pre: Boolean flag representing whether to install a pre-release version of the package
+
+        Returns:
+            None
+        """
         if pre:
             return subprocess.run(
                 [
@@ -109,6 +125,7 @@ class DeploymentPackageBuilder:
         )
 
     def __enter__(self):
+        """Create the zip archive"""
         if os.path.exists(self.target_dir):
             shutil.rmtree(self.target_dir)
             os.mkdir(self.target_dir)
@@ -128,15 +145,22 @@ class DeploymentPackageBuilder:
         return self.deployment_archive
 
     def __exit__(self, exc_type, exc_value, exc_tb):
-        """Cleanup transient resources"""
+        """None"""
         pass
 
 class AWSLambdaExecutor(BaseExecutor):
     """AWS Lambda executor plugin
 
     Args:
-        profile: Name of AWS profile to use (default: default), environment variable: AWS_PROFILE
-        region: AWS region, AWS_REGION
+        credentials: Path to AWS credentials file (default: `~/.aws/credentials`)
+        profile: AWS profile (default: `default`)
+        region: AWS region (default: `us-east-1`)
+        lambda_role_name: AWS IAM role name use to provision the Lambda function (default: `CovalentLambdaExecutionRole`)
+        s3_bucket_name: Name of a AWS S3 bucket that the executor can use to store temporary files (default: `covalent-lambda-job-resources`)
+        cache_dir: Path on the local file system to a cache directory (default: `~/.cache/covalent`)
+        poll_freq: Time interval between successive polls to the lambda function (default: `5`)
+        timeout: Duration in seconds before the Lambda function times out (default: `60`)
+        cleanup: Flag represents whether or not to cleanup temporary files generated during execution (default: `True`)
     """
 
     def __init__(
@@ -175,10 +199,25 @@ class AWSLambdaExecutor(BaseExecutor):
 
     @contextmanager
     def get_session(self) -> Session:
+        """Yield a boto3 session to be used for instantiating AWS service clients/resources
+
+        Args:
+            None
+        
+        Returns:
+            session: AWS boto3.Session object
+        """
         yield boto3.Session(profile_name=self.profile, region_name=self.region)
 
     def _is_lambda_active(self, function_name: str):
-        """Returns True if lambda is in the active state"""
+        """Check if the lambda function is active of not
+
+        Args:
+            function_name: Name of the lambda function
+
+        Returns:
+            bool: Boolean value either True/False
+        """
         # Check if lambda is active
         is_active = False
         with self.get_session() as session:
@@ -196,7 +235,15 @@ class AWSLambdaExecutor(BaseExecutor):
         return is_active
 
     def _create_lambda(self, function_name: str, deployment_archive_name: str) -> Dict:
-        """Create the lambda function"""
+        """Create the AWS Lambda function
+
+        Args:
+            function_name: AWS Lambda function name
+            deployment_archive_name: Lambda deployment zip archive name
+
+        Returns:
+            response: AWS boto3 client create_lambda response
+        """
         with self.get_session() as session:
             iam_client = session.client("iam")
             role_arn = None
@@ -236,7 +283,14 @@ class AWSLambdaExecutor(BaseExecutor):
         return lambda_state
 
     def _invoke_lambda(self, function_name: str) -> Dict:
-        """Invoke the Lambda function and return the response"""
+        """Invoke the AWS Lambda function
+
+        Args:
+            function_name: AWS Lambda function name
+
+        Returns:
+            response: AWS boto3 client invoke lambda response
+        """
         with self.get_session() as session:
             client = session.client("lambda")
             try:
@@ -247,7 +301,14 @@ class AWSLambdaExecutor(BaseExecutor):
                 exit(1)
 
     def _is_key_in_bucket(self, object_key):
-        """Return true if file/key found in s3 bucket"""
+        """Return True if the object is present in the S3 bucket
+
+        Args:
+            object_key: Name of the object to check if present in S3
+
+        Returns:
+            bool: True/False
+        """
         with self.get_session() as session:
             s3_client = session.client('s3')
             try:
@@ -263,7 +324,14 @@ class AWSLambdaExecutor(BaseExecutor):
                 exit(1)
 
     def _get_result_object(self, workdir: str, result_filename: str):
-        """Retrive the result object from the pickle file upload to S3 bucket after the lambda execution"""
+        """Fetch the result object from the S3 bucket
+
+        Args:
+            workdir: Path on the local file system where the pickled object is downloaded
+
+        Returns:
+            None
+        """
         with self.get_session() as session:
             while not self._key_exists:
                 self._key_exists = self._is_key_in_bucket(result_filename)
@@ -289,7 +357,14 @@ class AWSLambdaExecutor(BaseExecutor):
         return result_object
 
     def setup(self, task_metadata: Dict):
-        """Perform necessary setup tasks"""
+        """AWS Lambda specific setup tasks
+
+        Args:
+            task_metadata: Dictionary containing the task dispatch_id and node_id
+
+        Returns:
+            None
+        """
         dispatch_id = task_metadata["dispatch_id"]
         node_id = task_metadata["node_id"]
         workdir = os.path.join(self._cwd, dispatch_id)
@@ -341,6 +416,17 @@ class AWSLambdaExecutor(BaseExecutor):
         app_log.debug(f"Finished setup for task - {dispatch_id}-{node_id} ... ")
 
     def run(self, function: Callable, args: List, kwargs: Dict, task_metadata: Dict):
+        """Run the executor
+
+        Args:
+            function: Python callable to be executed on the remote executor
+            args: List of positional arguments to be passed to the function
+            kwargs: Keyword arguments to be passed into the function
+            task_metadata: Dictionary containing the task dispatch_id and node_id
+
+        Returns:
+            None
+        """
         dispatch_id = task_metadata['dispatch_id']
         node_id = task_metadata['node_id']
         workdir = os.path.join(self._cwd, dispatch_id)
@@ -380,9 +466,13 @@ class AWSLambdaExecutor(BaseExecutor):
         return result_object
 
     def teardown(self, task_metadata: Dict):
-        """Delete resources that were created for the purposes of the lambda execution
-        * Remove all resources from the S3 bucket
-        * Delete the lambda
+        """Cleanup temporary files and the Lambda function
+
+        Args:
+            task_metadata: Dictionary containing the task dispatch_id and node_id
+
+        Returns:
+            None
         """
         dispatch_id = task_metadata['dispatch_id']
         node_id = task_metadata['node_id']
