@@ -113,7 +113,7 @@ cd covalent-awslambda-plugin
 pip install -e .
 ```
 
-Users can optionally configure this executor by specifying its properties in their Covalent's configuration file. Following is a section showing the default configuration values for this executor
+Users can optionally configure this executor by specifying its properties in their Covalent configuration file. Following is a section showing the default configuration values for this executor
 
 ```
 [executors.awslambda]
