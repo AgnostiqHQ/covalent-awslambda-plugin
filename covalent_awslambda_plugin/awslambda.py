@@ -24,7 +24,7 @@ import shutil
 import subprocess
 import sys
 import time
-from abc import ABC, abstractmethod
+import tempfile
 from contextlib import contextmanager
 from typing import Callable, Dict, List
 from zipfile import ZipFile
@@ -189,7 +189,7 @@ class AWSLambdaExecutor(BaseExecutor):
         self.timeout = timeout or get_config('executors.awslambda.timeout')
         self.memory_size = memory_size or get_config('executors.awslambda.memory_size')
         self.cleanup = cleanup
-        self._cwd = os.getcwd()
+        self._cwd = tempfile.mkdtemp()
         self._key_exists = False
 
         # Set cloud environment variables
@@ -376,7 +376,7 @@ class AWSLambdaExecutor(BaseExecutor):
         if not os.path.exists(workdir):
             os.mkdir(workdir)
 
-        app_log.debug(f"Creating the Lambda deployment archive {deployment_archive_name} ...")
+        app_log.debug(f"Creating the Lambda deployment archive at {os.path.join(workdir, deployment_archive_name)} ...")
         with DeploymentPackageBuilder(workdir, deployment_archive_name, self.s3_bucket_name) as deployment_archive:
             exec_script = PYTHON_EXEC_SCRIPT.format(
                 func_filename=FUNC_FILENAME.format(dispatch_id=dispatch_id, node_id=node_id),
@@ -384,15 +384,15 @@ class AWSLambdaExecutor(BaseExecutor):
                 s3_bucket_name=self.s3_bucket_name
             )
 
-            with open(LAMBDA_FUNCTION_SCRIPT_NAME, "w") as f:
+            with open(os.path.join(workdir, LAMBDA_FUNCTION_SCRIPT_NAME), "w") as f:
                 f.write(exec_script)
 
             # Add script to the deployment archive
             with ZipFile(deployment_archive, mode="a") as archive:
-                archive.write(LAMBDA_FUNCTION_SCRIPT_NAME, arcname=LAMBDA_FUNCTION_SCRIPT_NAME)
+                archive.write(os.path.join(workdir, LAMBDA_FUNCTION_SCRIPT_NAME), arcname=LAMBDA_FUNCTION_SCRIPT_NAME)
 
         app_log.debug(
-            f"Lambda deployment archive: {deployment_archive_name} created. Uploading to S3 ..."
+            f"Lambda deployment archive: {os.path.join(workdir, deployment_archive_name)} created. Uploading to S3 ..."
         )
 
         # Upload archive to s3 bucket
