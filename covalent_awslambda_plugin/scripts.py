@@ -18,6 +18,37 @@
 #
 # Relief from the License may be granted by purchasing a commercial license.
 
-# Include any dependencies for the plugin in this file.
-boto3==1.24.35
-cloudpickle==2.0.0
+"""Python execution script"""
+
+PYTHON_EXEC_SCRIPT="""
+import os
+import boto3
+import cloudpickle as pickle
+
+def lambda_handler(event, context):
+    os.environ['HOME'] = "/tmp"
+    os.chdir("/tmp")
+
+    s3 = boto3.client("s3")
+
+    try:
+        s3.download_file("{s3_bucket_name}", "{func_filename}", "/tmp/{func_filename}")
+    except Exception as e:
+        print(e)
+
+    with open("/tmp/{func_filename}", "rb") as f:
+        function, args, kwargs = pickle.load(f)
+
+    try:
+        result = function(*args, **kwargs)
+    except Exception as e:
+        print(e)
+
+    with open("/tmp/{result_filename}", "wb") as f:
+        pickle.dump(result, f)
+
+    try:
+        s3.upload_file("/tmp/{result_filename}", "{s3_bucket_name}", "{result_filename}")
+    except Exception as e:
+        print(e)
+"""

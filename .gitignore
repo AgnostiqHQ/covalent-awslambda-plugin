@@ -1,0 +1,8 @@
+.vscode
+*.pyc
+__pycache__
+*.egg-info
+dist
+results
+scratch
+*.ipynb
