@@ -88,5 +88,5 @@ jobs:
           release=false
           git config user.name "CovalentOpsBot"
           git config user.email "covalentopsbot@users.noreply.github.com"
-          git remote set-url origin https://${{ secrets.COVALENT_OPS_BOT_TOKEN }}@github.com/AgnostiqHQ/covalent-awsbatch-plugin.git
+          git remote set-url origin https://${{ secrets.COVALENT_OPS_BOT_TOKEN }}@github.com/AgnostiqHQ/covalent-awslambda-plugin.git
           git push origin HEAD:main
