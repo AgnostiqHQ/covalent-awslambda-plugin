@@ -144,6 +144,8 @@ def test_deployment_package_builder(lambda_executor, mocker):
     mocker.patch("covalent_awslambda_plugin.awslambda.app_log")
     mocker.patch("covalent_awslambda_plugin.awslambda.ZipFile")
     mocker.patch("covalent_awslambda_plugin.awslambda.os.path.exists", return_value=True)
+    mocker.patch("covalent_awslambda_plugin.awslambda.os.mkdir")
+    mocker.patch("covalent_awslambda_plugin.awslambda.open")
 
     lambda_executor.setup(task_metadata)
 
@@ -168,7 +170,7 @@ def test_deployment_package_builder_base_setup(mocker):
     os_path_exists_mock.assert_called_once_with(pkg_bldr.target_dir)
     shutil_rmtree_mock.assert_called_once_with(pkg_bldr.target_dir)
     os_mkdir_mock.assert_called_once_with(pkg_bldr.target_dir)
-    assert install_mock.call_count == 3
+    assert install_mock.call_count == 2
     zipfile_mock.assert_called_once_with(pkg_bldr.deployment_archive, mode="w")
 
 def test_deployment_package_builder_install_method(mocker):
@@ -185,7 +187,7 @@ def test_deployment_package_builder_install_method(mocker):
     with DeploymentPackageBuilder(workdir, archive_name, s3_bucket_name) as bldr:
         pass
 
-    assert subprocess_mock.call_count == 3
+    assert subprocess_mock.call_count == 2
 
 def test_function_pickle_dump(lambda_executor, mocker):
     def f(x):
