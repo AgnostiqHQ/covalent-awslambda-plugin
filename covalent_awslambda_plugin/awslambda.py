@@ -132,7 +132,6 @@ class DeploymentPackageBuilder:
 
         # Install the required python dependencies
         self.install("boto3")
-        self.install("cloudpickle==2.0.0")
         self.install("covalent", pre=True)
 
         # Create zip archive with dependencies
@@ -383,10 +382,8 @@ class AWSLambdaExecutor(BaseExecutor):
                 result_filename=RESULT_FILENAME.format(dispatch_id = dispatch_id, node_id=node_id),
                 s3_bucket_name=self.s3_bucket_name
             )
-
             with open(os.path.join(workdir, LAMBDA_FUNCTION_SCRIPT_NAME), "w") as f:
                 f.write(exec_script)
-
             # Add script to the deployment archive
             with ZipFile(deployment_archive, mode="a") as archive:
                 archive.write(os.path.join(workdir, LAMBDA_FUNCTION_SCRIPT_NAME), arcname=LAMBDA_FUNCTION_SCRIPT_NAME)
