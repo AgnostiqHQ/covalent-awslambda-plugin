@@ -2,9 +2,7 @@
 
 <div align="center">
 
-![covalent lambda plugin](./assets/AWS_Lambda.jpg)
-
-&nbsp;
+<img src="https://raw.githubusercontent.com/AgnostiqHQ/covalent-awsbatch-plugin/main/assets/aws_lambda_readme_banner.jpg" width=150%>
 
 </div>
 
@@ -125,12 +123,12 @@ Users can optionally configure this executor by specifying its properties in the
 
 ```
 [executors.awslambda]
-credentials = "/home/<user>/.aws/credentials"
+credentials = "/home/user/.aws/credentials"
 profile = "default"
 region = "us-east-1"
 lambda_role_name = "CovalentLambdaExecutionRole"
 s3_bucket_name = "covalent-lambda-job-resources"
-cache_dir = "/home/<user>/.cache/covalent"
+cache_dir = "/home/user/.cache/covalent"
 poll_freq = 5
 timeout = 60
 memory_size = 512
@@ -167,7 +165,7 @@ def my_task(...):
 
 ## Release Notes
 
-Release notes are available in the [Changelog](https://github.com/AgnostiqHQ/covalent-executor-template/blob/main/CHANGELOG.md).
+Release notes are available in the [Changelog](https://github.com/AgnostiqHQ/covalent-awslambda-plugin/blob/main/CHANGELOG.md).
 
 ## Citation
 
@@ -178,4 +176,4 @@ Please use the following citation in any publications:
 
 ## License
 
-Covalent is licensed under the GNU Affero GPL 3.0 License. Covalent may be distributed under other licenses upon request. See the [LICENSE](https://github.com/AgnostiqHQ/covalent-executor-template/blob/main/LICENSE) file or contact the [support team](mailto:support@agnostiq.ai) for more details.
+Covalent is licensed under the GNU Affero GPL 3.0 License. Covalent may be distributed under other licenses upon request. See the [LICENSE](https://github.com/AgnostiqHQ/covalent-awslambda-plugin/blob/main/LICENSE) file or contact the [support team](mailto:support@agnostiq.ai) for more details.
