@@ -23,8 +23,8 @@ import pathlib
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
-from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from typing import Callable, Dict, List
 from zipfile import ZipFile
@@ -38,6 +38,7 @@ from covalent._shared_files import logger
 from covalent._shared_files.config import get_config
 
 from covalent.executor import BaseExecutor
+
 from .scripts import PYTHON_EXEC_SCRIPT
 
 app_log = logger.app_log
@@ -74,6 +75,7 @@ class DeploymentPackageBuilder:
         archive_name: Name of the deployment archive
         s3_bucket_name: Name of the AWS S3 bucket to be used to cache the deployment package
     """
+
     def __init__(self, directory: str, archive_name: str, s3_bucket_name: str):
         self.directory = directory
         self.archive_name = archive_name
@@ -130,7 +132,6 @@ class DeploymentPackageBuilder:
 
         # Install the required python dependencies
         self.install("boto3")
-        self.install("cloudpickle==2.0.0")
         self.install("covalent", pre=True)
 
         # Create zip archive with dependencies
@@ -145,6 +146,7 @@ class DeploymentPackageBuilder:
     def __exit__(self, exc_type, exc_value, exc_tb):
         """None"""
         pass
+
 
 class AWSLambdaExecutor(BaseExecutor):
     """AWS Lambda executor plugin
@@ -181,13 +183,13 @@ class AWSLambdaExecutor(BaseExecutor):
         self.profile = profile or get_config("executors.awslambda.profile")
         self.region = region or get_config("executors.awslambda.region")
         self.s3_bucket_name = s3_bucket_name or get_config("executors.awslambda.s3_bucket_name")
-        self.role_name = lambda_role_name or get_config('executors.awslambda.lambda_role_name')
-        self.cache_dir = cache_dir or os.path.join(os.environ['HOME'], '.cache/covalent')
-        self.poll_freq = poll_freq or get_config('executors.awslambda.poll_freq')
-        self.timeout = timeout or get_config('executors.awslambda.timeout')
-        self.memory_size = memory_size or get_config('executors.awslambda.memory_size')
+        self.role_name = lambda_role_name or get_config("executors.awslambda.lambda_role_name")
+        self.cache_dir = cache_dir or os.path.join(os.environ["HOME"], ".cache/covalent")
+        self.poll_freq = poll_freq or get_config("executors.awslambda.poll_freq")
+        self.timeout = timeout or get_config("executors.awslambda.timeout")
+        self.memory_size = memory_size or get_config("executors.awslambda.memory_size")
         self.cleanup = cleanup
-        self._cwd = os.getcwd()
+        self._cwd = tempfile.mkdtemp()
         self._key_exists = False
 
         # Set cloud environment variables
@@ -201,7 +203,7 @@ class AWSLambdaExecutor(BaseExecutor):
 
         Args:
             None
-        
+
         Returns:
             session: AWS boto3.Session object
         """
@@ -219,7 +221,7 @@ class AWSLambdaExecutor(BaseExecutor):
         # Check if lambda is active
         is_active = False
         with self.get_session() as session:
-            lambda_client = session.client('lambda')
+            lambda_client = session.client("lambda")
             while not is_active:
                 lambda_state = lambda_client.get_function(FunctionName=function_name)
                 app_log.debug(
@@ -257,10 +259,7 @@ class AWSLambdaExecutor(BaseExecutor):
             "Runtime": "python3.8",
             "Role": f"{role_arn}",
             "Handler": "lambda_function.lambda_handler",
-            "Code": {
-                "S3Bucket": f"{self.s3_bucket_name}",
-                "S3Key": deployment_archive_name
-            },
+            "Code": {"S3Bucket": f"{self.s3_bucket_name}", "S3Key": deployment_archive_name},
             "PackageType": "Zip",
             "Publish": True,
             "Timeout": self.timeout,
@@ -277,7 +276,7 @@ class AWSLambdaExecutor(BaseExecutor):
                 exit(1)
 
         # Check if lambda is active
-        lambda_state = 'Active' if self._is_lambda_active(function_name) else None
+        lambda_state = "Active" if self._is_lambda_active(function_name) else None
         return lambda_state
 
     def _invoke_lambda(self, function_name: str) -> Dict:
@@ -308,10 +307,11 @@ class AWSLambdaExecutor(BaseExecutor):
             bool: True/False
         """
         with self.get_session() as session:
-            s3_client = session.client('s3')
+            s3_client = session.client("s3")
             try:
                 current_keys = [
-                    item['Key'] for item in s3_client.list_objects(Bucket=self.s3_bucket_name)['Contents']
+                    item["Key"]
+                    for item in s3_client.list_objects(Bucket=self.s3_bucket_name)["Contents"]
                 ]
                 if object_key in current_keys:
                     return True
@@ -337,7 +337,7 @@ class AWSLambdaExecutor(BaseExecutor):
 
         if self._key_exists:
             with self.get_session() as session:
-                s3_client = session.client('s3')
+                s3_client = session.client("s3")
                 # Download file
                 try:
                     s3_client.download_file(
@@ -366,45 +366,54 @@ class AWSLambdaExecutor(BaseExecutor):
         dispatch_id = task_metadata["dispatch_id"]
         node_id = task_metadata["node_id"]
         workdir = os.path.join(self._cwd, dispatch_id)
-        deployment_archive_name = LAMBDA_DEPLOYMENT_ARCHIVE_NAME.format(dispatch_id=dispatch_id, node_id=node_id)
-        lambda_function_name = LAMBDA_FUNCTION_NAME.format(dispatch_id=dispatch_id, node_id=node_id)
+        deployment_archive_name = LAMBDA_DEPLOYMENT_ARCHIVE_NAME.format(
+            dispatch_id=dispatch_id, node_id=node_id
+        )
+        lambda_function_name = LAMBDA_FUNCTION_NAME.format(
+            dispatch_id=dispatch_id, node_id=node_id
+        )
 
         app_log.debug(f"Starting setup for task - {dispatch_id}-{node_id} ... ")
 
         if not os.path.exists(workdir):
             os.mkdir(workdir)
 
-        app_log.debug(f"Creating the Lambda deployment archive {deployment_archive_name} ...")
-        with DeploymentPackageBuilder(workdir, deployment_archive_name, self.s3_bucket_name) as deployment_archive:
+        app_log.debug(
+            f"Creating the Lambda deployment archive at {os.path.join(workdir, deployment_archive_name)} ..."
+        )
+        with DeploymentPackageBuilder(
+            workdir, deployment_archive_name, self.s3_bucket_name
+        ) as deployment_archive:
             exec_script = PYTHON_EXEC_SCRIPT.format(
                 func_filename=FUNC_FILENAME.format(dispatch_id=dispatch_id, node_id=node_id),
-                result_filename=RESULT_FILENAME.format(dispatch_id = dispatch_id, node_id=node_id),
-                s3_bucket_name=self.s3_bucket_name
+                result_filename=RESULT_FILENAME.format(dispatch_id=dispatch_id, node_id=node_id),
+                s3_bucket_name=self.s3_bucket_name,
             )
-
-            with open(LAMBDA_FUNCTION_SCRIPT_NAME, "w") as f:
+            with open(os.path.join(workdir, LAMBDA_FUNCTION_SCRIPT_NAME), "w") as f:
                 f.write(exec_script)
-
             # Add script to the deployment archive
             with ZipFile(deployment_archive, mode="a") as archive:
-                archive.write(LAMBDA_FUNCTION_SCRIPT_NAME, arcname=LAMBDA_FUNCTION_SCRIPT_NAME)
+                archive.write(
+                    os.path.join(workdir, LAMBDA_FUNCTION_SCRIPT_NAME),
+                    arcname=LAMBDA_FUNCTION_SCRIPT_NAME,
+                )
 
         app_log.debug(
-            f"Lambda deployment archive: {deployment_archive_name} created. Uploading to S3 ..."
+            f"Lambda deployment archive: {os.path.join(workdir, deployment_archive_name)} created. Uploading to S3 ..."
         )
 
         # Upload archive to s3 bucket
         with self.get_session() as session:
             client = session.client("s3")
             try:
-                client.upload_file(deployment_archive, self.s3_bucket_name, deployment_archive_name)
+                client.upload_file(
+                    deployment_archive, self.s3_bucket_name, deployment_archive_name
+                )
             except botocore.exceptions.ClientError as ce:
                 app_log.exception(ce)
                 exit(1)
-        
-        app_log.debug(
-            f"Lambda deployment archive: {deployment_archive_name} uploaded to S3 ... "
-        )
+
+        app_log.debug(f"Lambda deployment archive: {deployment_archive_name} uploaded to S3 ... ")
 
         # Create the lambda function
         app_log.debug(f"Creating AWS Lambda function {lambda_function_name} ...")
@@ -425,13 +434,15 @@ class AWSLambdaExecutor(BaseExecutor):
         Returns:
             None
         """
-        dispatch_id = task_metadata['dispatch_id']
-        node_id = task_metadata['node_id']
+        dispatch_id = task_metadata["dispatch_id"]
+        node_id = task_metadata["node_id"]
         workdir = os.path.join(self._cwd, dispatch_id)
 
         func_filename = FUNC_FILENAME.format(dispatch_id=dispatch_id, node_id=node_id)
         result_filename = RESULT_FILENAME.format(dispatch_id=dispatch_id, node_id=node_id)
-        lambda_function_name = LAMBDA_FUNCTION_NAME.format(dispatch_id=dispatch_id, node_id=node_id)
+        lambda_function_name = LAMBDA_FUNCTION_NAME.format(
+            dispatch_id=dispatch_id, node_id=node_id
+        )
 
         app_log.debug(f"In run for task - {dispatch_id} - {node_id} ... ")
 
@@ -472,9 +483,11 @@ class AWSLambdaExecutor(BaseExecutor):
         Returns:
             None
         """
-        dispatch_id = task_metadata['dispatch_id']
-        node_id = task_metadata['node_id']
-        lambda_function_name = LAMBDA_FUNCTION_NAME.format(dispatch_id=dispatch_id, node_id=node_id)
+        dispatch_id = task_metadata["dispatch_id"]
+        node_id = task_metadata["node_id"]
+        lambda_function_name = LAMBDA_FUNCTION_NAME.format(
+            dispatch_id=dispatch_id, node_id=node_id
+        )
         workdir = os.path.join(self._cwd, dispatch_id)
 
         app_log.debug(f"In teardown for task - {dispatch_id} - {node_id}")
@@ -484,14 +497,25 @@ class AWSLambdaExecutor(BaseExecutor):
                 app_log.debug(f"Cleaning up resources created in S3 bucket {self.s3_bucket_name}")
                 s3_resource = session.resource("s3")
                 try:
-                    s3_resource.Object(self.s3_bucket_name, FUNC_FILENAME.format(dispatch_id=dispatch_id, node_id=node_id)).delete()
-                    s3_resource.Object(self.s3_bucket_name, RESULT_FILENAME.format(dispatch_id=dispatch_id, node_id=node_id)).delete()
-                    s3_resource.Object(self.s3_bucket_name, LAMBDA_DEPLOYMENT_ARCHIVE_NAME.format(dispatch_id=dispatch_id, node_id=node_id)).delete()
+                    s3_resource.Object(
+                        self.s3_bucket_name,
+                        FUNC_FILENAME.format(dispatch_id=dispatch_id, node_id=node_id),
+                    ).delete()
+                    s3_resource.Object(
+                        self.s3_bucket_name,
+                        RESULT_FILENAME.format(dispatch_id=dispatch_id, node_id=node_id),
+                    ).delete()
+                    s3_resource.Object(
+                        self.s3_bucket_name,
+                        LAMBDA_DEPLOYMENT_ARCHIVE_NAME.format(
+                            dispatch_id=dispatch_id, node_id=node_id
+                        ),
+                    ).delete()
                     app_log.debug(f"All objects from bucket {self.s3_bucket_name} deleted")
                 except botocore.exceptions.ClientError as ce:
                     app_log.exception(ce)
                     exit(1)
-                app_log.debug(f"Cleanup of resources in S3 bucket finished")
+                app_log.debug("Cleanup of resources in S3 bucket finished")
 
                 app_log.debug(f"Deleting lambda function {lambda_function_name}")
                 lambda_client = session.client("lambda")

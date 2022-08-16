@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Make the version of Covalent required flexible
 
+## [0.3.1] - 2022-08-16
+
+### Fixed
+
+- Fixed CI workflow
+- Updated tests
+
 ## [0.3.0] - 2022-08-13
 
 ### Added

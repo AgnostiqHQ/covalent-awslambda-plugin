@@ -20,7 +20,7 @@
 
 """Python execution script"""
 
-PYTHON_EXEC_SCRIPT="""
+PYTHON_EXEC_SCRIPT = """
 import os
 import boto3
 import cloudpickle as pickle
