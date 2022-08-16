@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+### Operations
+
+- Make the version of Covalent required flexible
+
 ## [0.3.0] - 2022-08-13
 
 ### Added
