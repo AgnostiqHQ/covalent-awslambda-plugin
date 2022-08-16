@@ -22,9 +22,9 @@ name: tests
 
 on:
   pull_request:
-  push:
-    branches: 
-      - develop
+  workflow_run:
+    workflows: [changelog]
+    types: [completed]
 
 jobs:
   tests:
@@ -55,6 +55,8 @@ jobs:
             experimental: false
     container: ${{ matrix.container }}
     continue-on-error: ${{ matrix.experimental }}
+    outputs:
+      release: ${{ steps.push.outputs.release }}
     steps:
       - name: Check out head
         uses: actions/checkout@v3
@@ -71,22 +73,59 @@ jobs:
           pip install --no-cache-dir -r requirements.txt
           pip install --no-cache-dir -r tests/requirements.txt
       
-      - name: Build distribution
-        run: python setup.py sdist
-
       - name: Install Covalent
         run: pip install covalent --pre
                
+      - name: Build distribution
+        run: python setup.py sdist
+
+      - name: Validate plugin
+        run: |
+          VERSION="$(cat ./VERSION)"
+          cd dist
+          tar xzf covalent-awslambda-plugin-${VERSION}.tar.gz
+          diff -r covalent-awslambda-plugin-${VERSION}/covalent_awslambda_plugin/ ../covalent_awslambda_plugin/
+          rm -rf covalent-awslambda-plugin-${VERSION}/
+          cd ..
+
+      - name: Install plugin
+        run: |
+          VERSION="$(cat ./VERSION)"
+          pip install ./dist/covalent-awslambda-plugin-${VERSION}.tar.gz
+
       - name: Run tests
-        run: PYTHONPATH=$PWD/ pytest tests/ -vv
+        run: PYTHONPATH=$PWD/tests pytest -vv tests/
+
+      - name: Get latest release
+        uses: actions-ecosystem/action-get-latest-tag@v1
+        id: get-latest-tag
+        if: github.ref == 'refs/heads/develop' && matrix.os == 'ubuntu-latest' && matrix.container == 'python:3.8-buster'
+        with:
+          semver_only: true
 
       - name: Push to main
         id: push
         if: github.ref == 'refs/heads/develop' && matrix.os == 'ubuntu-latest' && matrix.container == 'python:3.8-buster'
         run: |
+          MASTER_VERSION="$(echo ${{ steps.get-latest-tag.outputs.tag }} | cut -c2- )"
           VERSION="$(cat ./VERSION)"
           release=false
-          git config user.name "CovalentOpsBot"
-          git config user.email "covalentopsbot@users.noreply.github.com"
-          git remote set-url origin https://${{ secrets.COVALENT_OPS_BOT_TOKEN }}@github.com/AgnostiqHQ/covalent-awslambda-plugin.git
-          git push origin HEAD:main
+          if [ "$MASTER_VERSION" = "$VERSION" ] ; then
+            echo "$VERSION has been previously released."
+          else
+            git config user.name "CovalentOpsBot"
+            git config user.email "covalentopsbot@users.noreply.github.com"
+            git remote set-url origin https://${{ secrets.COVALENT_OPS_BOT_TOKEN }}@github.com/AgnostiqHQ/covalent-awslambda-plugin.git
+            git push origin HEAD:main
+            release=true
+          fi
+          echo "RELEASE=$release" >> $GITHUB_ENV
+          echo "::set-output name=release::$release"
+         
+  release:
+    needs: tests
+    if: github.ref == 'refs/heads/develop' && needs.tests.outputs.release == 'true'
+    uses: AgnostiqHQ/covalent-awslambda-plugin/.github/workflows/release.yml@develop
+    secrets: inherit
+    with:
+      prerelease: true

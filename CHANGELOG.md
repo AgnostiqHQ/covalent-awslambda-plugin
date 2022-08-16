@@ -12,6 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed CI workflow
 - Updated tests
 
+## [0.3.0] - 2022-08-13
+
+### Added
+
+- Workflow files for release
+
 ### Tests
 
 - Added basic unit tests for executor

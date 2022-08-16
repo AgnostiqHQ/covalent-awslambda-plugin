@@ -34,11 +34,9 @@ import botocore.exceptions
 import cloudpickle as pickle
 from boto3.session import Session
 
-# Covalent logger
 from covalent._shared_files import logger
 from covalent._shared_files.config import get_config
 
-# All executor plugins inherit from the BaseExecutor base class.
 from covalent.executor import BaseExecutor
 
 from .scripts import PYTHON_EXEC_SCRIPT
