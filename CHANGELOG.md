@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+## [0.4.0] - 2022-08-17
+
 ### Changed
 
 - Pinning `covalent` version to the latest stable release `0.177.0`
