@@ -1,12 +1,29 @@
 from covalent_awslambda_plugin import AWSLambdaExecutor
 import covalent as ct
+import os
+import subprocess
+import json
+
+terraform_dir = os.getenv("TF_DIR")
+
+proc = subprocess.run(
+    [
+        "terraform",
+        f"-chdir={terraform_dir}",
+        "output",
+        "-json",
+    ],
+    check=True,
+    capture_output=True,
+)
+
+s3_bucket_name = json.loads(proc.stdout.decode())["s3_bucket_name"]["value"]
 
 executor = AWSLambdaExecutor(
-    credentials="~/.aws/credentials",
-    profile="default",
-    region="us-east-1",
-    lambda_role_name="CovalentLambdaExecutionRole",
-    s3_bucket_name="covalent-lambda-job-resources",
+    credentials=os.getenv("AWS_SHARED_CREDENTIALS_FILE"),
+    profile=os.getenv("AWS_PROFILE"),
+    region=os.getenv("AWS_REGION"),
+    s3_bucket_name=s3_bucket_name,
     poll_freq=5,
     timeout=60,
     memory_size=512,
