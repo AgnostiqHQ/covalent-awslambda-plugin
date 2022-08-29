@@ -1,8 +1,10 @@
-from covalent_awslambda_plugin import AWSLambdaExecutor
-import covalent as ct
+import json
 import os
 import subprocess
-import json
+
+import covalent as ct
+
+from covalent_awslambda_plugin import AWSLambdaExecutor
 
 terraform_dir = os.getenv("TF_DIR")
 
