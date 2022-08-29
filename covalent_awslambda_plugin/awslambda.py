@@ -130,7 +130,7 @@ class DeploymentPackageBuilder:
 
         # Install the required python dependencies
         self.install("boto3")
-        self.install("covalent", pre=True)
+        self.install("covalent==0.177.0")
 
         # Create zip archive with dependencies
         with ZipFile(self.deployment_archive, mode="w") as archive:
