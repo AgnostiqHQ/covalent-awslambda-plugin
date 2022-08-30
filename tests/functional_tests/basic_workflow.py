@@ -34,18 +34,22 @@ executor = AWSLambdaExecutor(
     cleanup=True,
 )
 
+
 @ct.electron(executor=executor)
 def join_words(a, b):
     return ", ".join([a, b])
+
 
 @ct.electron(executor=executor)
 def excitement(a):
     return f"{a}!"
 
+
 @ct.lattice
 def simple_workflow(a, b):
     phrase = join_words(a, b)
     return excitement(phrase)
+
 
 dispatch_id = ct.dispatch(simple_workflow)("Hello", "World")
 print(dispatch_id)
