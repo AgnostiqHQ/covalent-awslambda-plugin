@@ -20,11 +20,13 @@ proc = subprocess.run(
 )
 
 s3_bucket_name = json.loads(proc.stdout.decode())["s3_bucket_name"]["value"]
+iam_role_name = json.loads(proc.stdout.decode())["iam_role_name"]["value"]
 
 executor = AWSLambdaExecutor(
     credentials=os.getenv("AWS_SHARED_CREDENTIALS_FILE"),
     profile=os.getenv("AWS_PROFILE"),
     region=os.getenv("AWS_REGION"),
+    lambda_role_name=iam_role_name,
     s3_bucket_name=s3_bucket_name,
     poll_freq=5,
     timeout=60,
