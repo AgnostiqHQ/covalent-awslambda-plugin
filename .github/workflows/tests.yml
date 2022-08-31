@@ -86,15 +86,30 @@ jobs:
           tar xzf covalent-awslambda-plugin-${VERSION}.tar.gz
           diff -r covalent-awslambda-plugin-${VERSION}/covalent_awslambda_plugin/ ../covalent_awslambda_plugin/
           rm -rf covalent-awslambda-plugin-${VERSION}/
-          cd ..
 
       - name: Install plugin
         run: |
           VERSION="$(cat ./VERSION)"
           pip install ./dist/covalent-awslambda-plugin-${VERSION}.tar.gz
 
+      - name: Test import via entrypoint
+        run: from covalent.executor import AWSLambdaExecutor
+        shell: python
+
       - name: Run tests
-        run: PYTHONPATH=$PWD/tests pytest -vv tests/
+        run: PYTHONPATH=$PWD/tests pytest -vv tests/ --cov=covalent_awslambda_plugin
+
+      - name: Generate coverage report
+        run: coverage xml -o coverage.xml
+      
+      - name: Upload report to Codecov
+        if: >
+          matrix.os == 'ubuntu-latest'
+          && matrix.container == 'python:3.8-buster'
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./coverage.xml
+          name: "Plugin Unit Tests"
 
       - name: Get latest release
         uses: actions-ecosystem/action-get-latest-tag@v1

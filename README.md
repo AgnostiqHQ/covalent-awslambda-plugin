@@ -4,11 +4,26 @@
 
 <img src="./assets/aws_lambda_readme_banner.jpg" width=150%>
 
+[![covalent](https://img.shields.io/badge/covalent-0.177.0-purple)](https://github.com/AgnostiqHQ/covalent)
+[![python](https://img.shields.io/pypi/pyversions/covalent-awslambda-plugin)](https://github.com/AgnostiqHQ/covalent-awslambda-plugin)
+[![tests](https://github.com/AgnostiqHQ/covalent-awslambda-plugin/actions/workflows/tests.yml/badge.svg)](https://github.com/AgnostiqHQ/covalent-awslambda-plugin/actions/workflows/tests.yml)
+[![codecov](https://codecov.io/gh/AgnostiqHQ/covalent-awslambda-plugin/branch/main/graph/badge.svg?token=QNTR18SR5H)](https://codecov.io/gh/AgnostiqHQ/covalent-awslambda-plugin)
+[![agpl](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0.en.html)
+
 </div>
 
 ## Covalent AWS Lambda Plugin
 
-Covalent is a Pythonic workflow tool used to execute tasks on advanced computing hardware. This executor plugin interfaces Covalent with AWS [Lambda](https://aws.amazon.com/lambda/) for dispatching compute. In order for workflows to leverage this executor, users must ensure that all the necessary IAM permissions are properly setup and configured. This executor uses the S3 and AWS Lambda service to execute an electron, thus the IAM roles/policies must be configured correctly. Precisely, the following IAM permissions are needed for the executor to run any dispatched electrons properly
+Covalent is a Pythonic workflow tool used to execute tasks on advanced computing hardware. This executor plugin interfaces Covalent with AWS [Lambda](https://aws.amazon.com/lambda/) for dispatching compute. 
+
+
+To use this plugin with Covalent, install it with `pip`:
+
+```sh
+pip install covalent-awslambda-plugin
+```
+
+In order for workflows to leverage this executor, users must ensure that all the necessary IAM permissions are properly setup and configured. This executor uses the S3 and AWS Lambda service to execute an electron, thus the IAM roles/policies must be configured correctly. Precisely, the following IAM permissions are needed for the executor to run any dispatched electrons properly
 
 ```json
 {
@@ -110,14 +125,6 @@ Secondly, the lambda function created by this executor on AWS also needs an IAM 
 }
 ```
 
-
-To use this plugin with Covalent, users can either clone this repository or install it via `pip install covalent-awslambda-plugin`. If the repository is cloned, the plugin can be installed as follows
-
-```sh
-git clone https://github.com/AgnostiqHQ/covalent-awslambda-plugin.git
-cd covalent-awslambda-plugin
-pip install -e .
-```
 
 Users can optionally configure this executor by specifying its properties in their Covalent configuration file. Following is a section showing the default configuration values for this executor
 
