@@ -1,5 +1,6 @@
-import covalent as ct
 from utils.executor_instance import executor
+
+import covalent as ct
 
 
 @ct.electron(executor=executor)
