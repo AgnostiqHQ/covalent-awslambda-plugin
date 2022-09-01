@@ -45,4 +45,7 @@ executor_config = {
     "cleanup": True,
 }
 
+print("Executor config:")
+print(executor_config)
+
 executor = AWSLambdaExecutor(**executor_config)
