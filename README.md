@@ -14,7 +14,7 @@
 
 ## Covalent AWS Lambda Plugin
 
-Covalent is a Pythonic workflow tool used to execute tasks on advanced computing hardware. This executor plugin interfaces Covalent with AWS [Lambda](https://aws.amazon.com/lambda/) for dispatching compute. 
+Covalent is a Pythonic workflow tool used to execute tasks on advanced computing hardware. This executor plugin interfaces Covalent with AWS [Lambda](https://aws.amazon.com/lambda/) for dispatching compute.
 
 
 To use this plugin with Covalent, install it with `pip`:
