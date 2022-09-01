@@ -1,11 +1,14 @@
 import json
 import os
 import subprocess
+
 from covalent_awslambda_plugin import AWSLambdaExecutor
 
+terraform_dir = os.getenv("TF_DIR")
 proc = subprocess.run(
     [
         "terraform",
+        f"-chdir={terraform_dir}",
         "output",
         "-json",
     ],
@@ -13,8 +16,17 @@ proc = subprocess.run(
     capture_output=True,
 )
 
-s3_bucket_name = os.getenv("LAMBDA_EXECUTOR_S3_BUCKET_NAME") or json.loads(proc.stdout.decode())["s3_bucket_name"]["value"]
-lambda_role_name = os.getenv("LAMBDA_EXECUTOR_LAMBDA_ROLE_NAME") or json.loads(proc.stdout.decode())["iam_role_name"]["value"]
+TERRAFORM_OUTPUTS = json.loads(proc.stdout.decode())
+
+print("Terraform output:")
+print(TERRAFORM_OUTPUTS)
+
+s3_bucket_name = (
+    os.getenv("LAMBDA_EXECUTOR_S3_BUCKET_NAME") or TERRAFORM_OUTPUTS["s3_bucket_name"]["value"]
+)
+lambda_role_name = (
+    os.getenv("LAMBDA_EXECUTOR_LAMBDA_ROLE_NAME") or TERRAFORM_OUTPUTS["iam_role_name"]["value"]
+)
 credentials = os.getenv("AWS_SHARED_CREDENTIALS_FILE", "~/.aws/credentials")
 profile = os.getenv("AWS_PROFILE", "default")
 region = os.getenv("AWS_REGION", "us-east-1")
@@ -30,7 +42,7 @@ executor_config = {
     "poll_freq": poll_freq,
     "timeout": timeout,
     "memory_size": memory_size,
-    "cleanup": True
+    "cleanup": True,
 }
 
 executor = AWSLambdaExecutor(**executor_config)
