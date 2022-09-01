@@ -23,4 +23,6 @@ dispatch_id = ct.dispatch(simple_workflow)("Hello", "World")
 result = ct.get_result(dispatch_id, wait=True)
 status = str(result.status)
 
+print(result)
+
 assert status == str(ct.status.COMPLETED)
