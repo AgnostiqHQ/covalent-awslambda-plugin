@@ -49,8 +49,8 @@ _EXECUTOR_PLUGIN_DEFAULTS = {
     or os.path.join(os.environ.get("HOME"), ".aws/credentials"),
     "profile": os.environ.get("AWS_PROFILE") or "default",
     "region": os.environ.get("AWS_REGION") or "us-east-1",
-    "lambda_role_name": "CovalentLambdaExecutionRole",
     "s3_bucket_name": "covalent-lambda-job-resources",
+    "execution_role": "CovalentLambdaExecutionRole",
     "cache_dir": os.path.join(os.environ["HOME"], ".cache/covalent"),
     "poll_freq": 5,
     "timeout": 60,
@@ -63,6 +63,30 @@ FUNC_FILENAME = "func-{dispatch_id}-{node_id}.pkl"
 RESULT_FILENAME = "result-{dispatch_id}-{node_id}.pkl"
 LAMBDA_DEPLOYMENT_ARCHIVE_NAME = "archive-{dispatch_id}-{node_id}.zip"
 LAMBDA_FUNCTION_SCRIPT_NAME = "lambda_function.py"
+
+
+class AWSExecutor(BaseExecutor):
+    def __init__(
+        self,
+        credentials: str = None,
+        profile: str = None,
+        region: str = None,
+        s3_bucket_name: str = None,
+        execution_role: str = None,
+        log_group_name: str = None,
+    ) -> None:
+
+        self.credentials = credentials or get_config("executors.awslambda.credentials")
+        self.profile = profile or get_config("executors.awslambda.profile")
+        self.region = region or get_config("executors.awslambda.region")
+        self.s3_bucket_name = s3_bucket_name or get_config("executors.awslambda.s3_bucket_name")
+        self.execution_role = execution_role or get_config("executors.awslambda.execution_role")
+        self.log_group_name = log_group_name or get_config("executors.awslambda.log_group_name")
+
+        # Set cloud environment variables
+        os.environ["AWS_SHARED_CREDENTIALS_FILE"] = f"{self.credentials}"
+        os.environ["AWS_PROFILE"] = f"{self.profile}"
+        os.environ["AWS_REGION"] = f"{self.region}"
 
 
 class DeploymentPackageBuilder:
@@ -146,16 +170,15 @@ class DeploymentPackageBuilder:
         pass
 
 
-class AWSLambdaExecutor(BaseExecutor):
+class AWSLambdaExecutor(AWSExecutor):
     """AWS Lambda executor plugin
 
     Args:
         credentials: Path to AWS credentials file (default: `~/.aws/credentials`)
         profile: AWS profile (default: `default`)
         region: AWS region (default: `us-east-1`)
-        lambda_role_name: AWS IAM role name use to provision the Lambda function (default: `CovalentLambdaExecutionRole`)
         s3_bucket_name: Name of a AWS S3 bucket that the executor can use to store temporary files (default: `covalent-lambda-job-resources`)
-        cache_dir: Path on the local file system to a cache directory (default: `~/.cache/covalent`)
+        execution_role: AWS IAM role name use to provision the Lambda function (default: `CovalentLambdaExecutionRole`)
         poll_freq: Time interval between successive polls to the lambda function (default: `5`)
         timeout: Duration in seconds before the Lambda function times out (default: `60`)
         cleanup: Flag represents whether or not to cleanup temporary files generated during execution (default: `True`)
@@ -163,37 +186,36 @@ class AWSLambdaExecutor(BaseExecutor):
 
     def __init__(
         self,
-        credentials: str = None,
-        profile: str = None,
-        region: str = None,
-        lambda_role_name: str = None,
-        s3_bucket_name: str = None,
-        cache_dir: str = None,
+        credentials: str,
+        profile: str,
+        region: str,
+        s3_bucket_name: str,
+        execution_role: str,
         poll_freq: int = None,
         timeout: int = None,
         memory_size: int = None,
         cleanup: bool = False,
-        **kwargs,
     ) -> None:
-        super().__init__(cache_dir=cache_dir, **kwargs)
 
-        self.credentials = credentials or get_config("executors.awslambda.credentials")
-        self.profile = profile or get_config("executors.awslambda.profile")
-        self.region = region or get_config("executors.awslambda.region")
-        self.s3_bucket_name = s3_bucket_name or get_config("executors.awslambda.s3_bucket_name")
-        self.role_name = lambda_role_name or get_config("executors.awslambda.lambda_role_name")
-        self.cache_dir = cache_dir or os.path.join(os.environ["HOME"], ".cache/covalent")
+        # AWSExecutor parameters
+        required_attrs = {
+            "credentials": credentials or get_config("executors.awslambda.credentials"),
+            "profile": profile or get_config("executors.awslambda.profile"),
+            "region": region or get_config("executors.awslambda.region"),
+            "s3_bucket_name": s3_bucket_name or get_config("executors.awslambda.s3_bucket_name"),
+            "execution_role": execution_role or get_config("executors.awslambda.execution_role"),
+        }
+
+        super().__init__(**required_attrs)
+
+        # Lambda executor parameters
         self.poll_freq = poll_freq or get_config("executors.awslambda.poll_freq")
         self.timeout = timeout or get_config("executors.awslambda.timeout")
         self.memory_size = memory_size or get_config("executors.awslambda.memory_size")
         self.cleanup = cleanup
+
         self._cwd = tempfile.mkdtemp()
         self._key_exists = False
-
-        # Set cloud environment variables
-        os.environ["AWS_SHARED_CREDENTIALS_FILE"] = f"{self.credentials}"
-        os.environ["AWS_PROFILE"] = f"{self.profile}"
-        os.environ["AWS_REGION"] = f"{self.region}"
 
     @contextmanager
     def get_session(self) -> Session:
@@ -250,7 +272,7 @@ class AWSLambdaExecutor(BaseExecutor):
                 role_arn = response["Role"]["Arn"]
             except botocore.exceptions.ClientError as ce:
                 app_log.exception(ce)
-                exit(1)
+                raise
 
         lambda_create_kwargs = {
             "FunctionName": f"{function_name}",
@@ -271,7 +293,7 @@ class AWSLambdaExecutor(BaseExecutor):
                 app_log.debug(f"Lambda function: {function_name} created: {response}")
             except botocore.exceptions.ClientError as ce:
                 app_log.exception(ce)
-                exit(1)
+                raise
 
         # Check if lambda is active
         lambda_state = "Active" if self._is_lambda_active(function_name) else None
@@ -289,11 +311,10 @@ class AWSLambdaExecutor(BaseExecutor):
         with self.get_session() as session:
             client = session.client("lambda")
             try:
-                response = client.invoke(FunctionName=function_name)
-                return response
+                return client.invoke(FunctionName=function_name)
             except botocore.exceptions.ClientError as ce:
                 app_log.exception(ce)
-                exit(1)
+                raise
 
     def _is_key_in_bucket(self, object_key):
         """Return True if the object is present in the S3 bucket
@@ -317,7 +338,7 @@ class AWSLambdaExecutor(BaseExecutor):
                     return False
             except botocore.exceptions.ClientError as ce:
                 app_log.exception(ce)
-                exit(1)
+                raise
 
     def _get_result_object(self, workdir: str, result_filename: str):
         """Fetch the result object from the S3 bucket
@@ -345,7 +366,7 @@ class AWSLambdaExecutor(BaseExecutor):
                     )
                 except botocore.exceptions.ClientError as ce:
                     app_log.exception(ce)
-                    exit(1)
+                    raise
 
         with open(os.path.join(workdir, result_filename), "rb") as f:
             result_object = pickle.load(f)
@@ -409,7 +430,7 @@ class AWSLambdaExecutor(BaseExecutor):
                 )
             except botocore.exceptions.ClientError as ce:
                 app_log.exception(ce)
-                exit(1)
+                raise
 
         app_log.debug(f"Lambda deployment archive: {deployment_archive_name} uploaded to S3 ... ")
 
@@ -457,7 +478,7 @@ class AWSLambdaExecutor(BaseExecutor):
                     client.upload_fileobj(f, self.s3_bucket_name, func_filename)
             except botocore.exceptions.ClientError as ce:
                 app_log.exception(ce)
-                exit(1)
+                raise
         app_log.debug(f"Function {func_filename} uploaded to S3 bucket {self.s3_bucket_name}")
 
         # Invoke the created lambda
@@ -492,37 +513,46 @@ class AWSLambdaExecutor(BaseExecutor):
 
         if self.cleanup:
             with self.get_session() as session:
+
                 app_log.debug(f"Cleaning up resources created in S3 bucket {self.s3_bucket_name}")
                 s3_resource = session.resource("s3")
+
                 try:
                     s3_resource.Object(
                         self.s3_bucket_name,
                         FUNC_FILENAME.format(dispatch_id=dispatch_id, node_id=node_id),
                     ).delete()
+
                     s3_resource.Object(
                         self.s3_bucket_name,
                         RESULT_FILENAME.format(dispatch_id=dispatch_id, node_id=node_id),
                     ).delete()
+
                     s3_resource.Object(
                         self.s3_bucket_name,
                         LAMBDA_DEPLOYMENT_ARCHIVE_NAME.format(
                             dispatch_id=dispatch_id, node_id=node_id
                         ),
                     ).delete()
+
                     app_log.debug(f"All objects from bucket {self.s3_bucket_name} deleted")
+
                 except botocore.exceptions.ClientError as ce:
                     app_log.exception(ce)
-                    exit(1)
+                    raise
+
                 app_log.debug("Cleanup of resources in S3 bucket finished")
 
                 app_log.debug(f"Deleting lambda function {lambda_function_name}")
                 lambda_client = session.client("lambda")
+
                 try:
                     response = lambda_client.delete_function(FunctionName=lambda_function_name)
                     app_log.debug(f"Lambda cleanup response: {response}")
                 except botocore.exceptions.ClientError as ce:
                     app_log.exception(ce)
-                    exit(1)
+                    raise
+
                 app_log.debug(f"Lambda function {lambda_function_name} deleted")
 
                 app_log.debug(f"Cleaning up working directory {workdir}")
