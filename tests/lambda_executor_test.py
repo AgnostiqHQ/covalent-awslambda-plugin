@@ -35,9 +35,8 @@ def lambda_executor():
         credentials="~/.aws/credentials",
         profile="test_profile",
         region="us-east-1",
-        lambda_role_name="test_lambda_role",
         s3_bucket_name="test_bucket_name",
-        cache_dir="~/.cache/covalent",
+        execution_role="test_lambda_role",
         poll_freq=30,
         timeout=10,
         memory_size=512,
@@ -50,9 +49,8 @@ def test_init():
         credentials="~/.aws/credentials",
         profile="test_profile",
         region="us-east-1",
-        lambda_role_name="test_lambda_role",
+        execution_role="test_lambda_role",
         s3_bucket_name="test_bucket_name",
-        cache_dir="~/.cache/covalent",
         poll_freq=30,
         timeout=10,
         memory_size=512,
@@ -62,9 +60,8 @@ def test_init():
     assert awslambda.credentials == "~/.aws/credentials"
     assert awslambda.profile == "test_profile"
     assert awslambda.region == "us-east-1"
-    assert awslambda.role_name == "test_lambda_role"
+    assert awslambda.execution_role == "test_lambda_role"
     assert awslambda.s3_bucket_name == "test_bucket_name"
-    assert awslambda.cache_dir == "~/.cache/covalent"
     assert awslambda.poll_freq == 30
     assert awslambda.timeout == 10
     assert awslambda.memory_size == 512
