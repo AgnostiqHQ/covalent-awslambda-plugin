@@ -1,10 +1,9 @@
 import sys
 
+import covalent as ct
 from numpy.random import permutation
 from sklearn import datasets, svm
 from utils.executor_instance import executor
-
-import covalent as ct
 
 deps_pip = ct.DepsPip(packages=["numpy==1.22.4", "scikit-learn==1.1.2"])
 
