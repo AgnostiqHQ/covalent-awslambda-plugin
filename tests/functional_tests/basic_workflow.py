@@ -1,5 +1,9 @@
 import covalent as ct
+from covalent._shared_files import logger
 from utils.executor_instance import executor
+
+app_log = logger.app_log
+log_stack_info = logger.log_stack_info
 
 
 @ct.electron(executor=executor)
@@ -19,9 +23,9 @@ def simple_workflow(a, b):
 
 
 dispatch_id = ct.dispatch(simple_workflow)("Hello", "World")
+app_log.debug(f"AWS Lambda functional test `basic_workflow.py` dispatch id: {dispatch_id}")
+
 result = ct.get_result(dispatch_id, wait=True)
 status = str(result.status)
-
-print(result)
 
 assert status == str(ct.status.COMPLETED)
