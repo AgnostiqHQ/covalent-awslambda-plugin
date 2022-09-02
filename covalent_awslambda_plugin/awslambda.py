@@ -33,6 +33,7 @@ import boto3
 import botocore.exceptions
 import cloudpickle as pickle
 from boto3.session import Session
+from covalent._results_manager import Result
 from covalent._shared_files import logger
 from covalent._shared_files.config import get_config
 from covalent.executor import BaseExecutor
@@ -229,6 +230,29 @@ class AWSLambdaExecutor(AWSExecutor):
         """
         yield boto3.Session(profile_name=self.profile, region_name=self.region)
 
+    def _upload_task(self, workdir: str, func_filename: str):
+        """
+        Upload the function file to remote
+
+        Args:
+            workdir: Work dir on remote to upload file to
+            func_filename: Name of the function file
+
+        Returns:
+            None
+        """
+
+        app_log.debug(f"Uploading function to S3 bucket {self.s3_bucket_name}")
+        with self.get_session() as session:
+            client = session.client("s3")
+            try:
+                with open(os.path.join(workdir, func_filename), "rb") as f:
+                    client.upload_fileobj(f, self.s3_bucket_name, func_filename)
+            except botocore.exceptions.ClientError as ce:
+                app_log.exception(ce)
+                raise
+        app_log.debug(f"Function {func_filename} uploaded to S3 bucket {self.s3_bucket_name}")
+
     def _is_lambda_active(self, function_name: str):
         """Check if the lambda function is active of not
 
@@ -296,11 +320,11 @@ class AWSLambdaExecutor(AWSExecutor):
                 raise
 
         # Check if lambda is active
-        lambda_state = "Active" if self._is_lambda_active(function_name) else None
-        return lambda_state
+        return "Active" if self._is_lambda_active(function_name) else None
 
-    def _invoke_lambda(self, function_name: str) -> Dict:
-        """Invoke the AWS Lambda function
+    def submit_task(self, function_name: str) -> Dict:
+        """
+        Submit the task by invoking the AWS Lambda function
 
         Args:
             function_name: AWS Lambda function name
@@ -308,6 +332,9 @@ class AWSLambdaExecutor(AWSExecutor):
         Returns:
             response: AWS boto3 client invoke lambda response
         """
+
+        app_log.debug(f"Invoking AWS Lambda function {function_name}")
+
         with self.get_session() as session:
             client = session.client("lambda")
             try:
@@ -316,32 +343,45 @@ class AWSLambdaExecutor(AWSExecutor):
                 app_log.exception(ce)
                 raise
 
-    def _is_key_in_bucket(self, object_key):
-        """Return True if the object is present in the S3 bucket
+    def get_status(self, object_key: str):
+        """
+        Return status of availability of result object on remote machine
+
+        Args:
+            object_key: Name of the S3 object
+        """
+
+        with self.get_session() as session:
+            while not self._key_exists:
+                s3_client = session.client("s3")
+
+                try:
+                    current_keys = [
+                        item["Key"]
+                        for item in s3_client.list_objects(Bucket=self.s3_bucket_name)["Contents"]
+                    ]
+                    self._key_exists = object_key in current_keys
+                except botocore.exceptions.ClientError as ce:
+                    app_log.exception(ce)
+                    raise
+
+        return self._key_exists
+
+    def _poll_task(self, object_key: str):
+        """
+        Poll task until its result is ready
 
         Args:
             object_key: Name of the object to check if present in S3
-
-        Returns:
-            bool: True/False
         """
-        with self.get_session() as session:
-            s3_client = session.client("s3")
-            try:
-                current_keys = [
-                    item["Key"]
-                    for item in s3_client.list_objects(Bucket=self.s3_bucket_name)["Contents"]
-                ]
-                if object_key in current_keys:
-                    return True
-                else:
-                    return False
-            except botocore.exceptions.ClientError as ce:
-                app_log.exception(ce)
-                raise
 
-    def _get_result_object(self, workdir: str, result_filename: str):
-        """Fetch the result object from the S3 bucket
+        while not self.get_status(object_key):
+            app_log.debug(f"Polling object: {object_key}")
+            time.sleep(self.poll_freq)
+
+    def _query_result(self, workdir: str, result_filename: str):
+        """
+        Fetch the result object from the S3 bucket
 
         Args:
             workdir: Path on the local file system where the pickled object is downloaded
@@ -349,10 +389,6 @@ class AWSLambdaExecutor(AWSExecutor):
         Returns:
             None
         """
-        with self.get_session() as session:
-            while not self._key_exists:
-                self._key_exists = self._is_key_in_bucket(result_filename)
-                time.sleep(0.1)
 
         if self._key_exists:
             with self.get_session() as session:
@@ -469,26 +505,19 @@ class AWSLambdaExecutor(AWSExecutor):
         with open(os.path.join(workdir, func_filename), "wb") as f:
             pickle.dump((function, args, kwargs), f)
 
-        app_log.debug(f"Uploading function to S3 bucket {self.s3_bucket_name}")
         # Upload pickled file to s3 bucket created
-        with self.get_session() as session:
-            client = session.client("s3")
-            try:
-                with open(os.path.join(workdir, func_filename), "rb") as f:
-                    client.upload_fileobj(f, self.s3_bucket_name, func_filename)
-            except botocore.exceptions.ClientError as ce:
-                app_log.exception(ce)
-                raise
-        app_log.debug(f"Function {func_filename} uploaded to S3 bucket {self.s3_bucket_name}")
+        self._upload_task(workdir, func_filename)
 
         # Invoke the created lambda
-        app_log.debug(f"Invoking AWS Lambda function {lambda_function_name}")
-        lambda_invocation_response = self._invoke_lambda(lambda_function_name)
+        lambda_invocation_response = self.submit_task(lambda_function_name)
         app_log.debug(f"Lambda function response: {lambda_invocation_response}")
+
+        # Poll task
+        self._poll_task(result_filename)
 
         # Download the result object
         app_log.debug(f"Retrieving result for task - {dispatch_id} - {node_id}")
-        result_object = self._get_result_object(workdir, result_filename)
+        result_object = self._query_result(workdir, result_filename)
         app_log.debug(f"Result retrived for task - {dispatch_id} - {node_id}")
 
         return result_object
