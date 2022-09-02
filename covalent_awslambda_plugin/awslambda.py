@@ -51,7 +51,7 @@ _EXECUTOR_PLUGIN_DEFAULTS = {
     "region": os.environ.get("AWS_REGION") or "us-east-1",
     "s3_bucket_name": "covalent-lambda-job-resources",
     "execution_role": "CovalentLambdaExecutionRole",
-    "cache_dir": os.path.join(os.environ["HOME"], ".cache/covalent"),
+    "log_group_name": "covalent-lambda-log-group",
     "poll_freq": 5,
     "timeout": 60,
     "memory_size": 512,
