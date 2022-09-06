@@ -88,6 +88,8 @@ class AWSExecutor(BaseExecutor):
         os.environ["AWS_PROFILE"] = f"{self.profile}"
         os.environ["AWS_REGION"] = f"{self.region}"
 
+        super().__init__()
+
 
 class DeploymentPackageBuilder:
     """AWS Lambda deployment package (zip archive) builder
