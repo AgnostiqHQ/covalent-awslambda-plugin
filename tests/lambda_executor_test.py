@@ -192,21 +192,17 @@ def test_deployment_package_builder_install_method(mocker):
     assert subprocess_mock.call_count == 2
 
 
-@pytest.mark.skip("Hanging")
 def test_function_pickle_dump(lambda_executor, mocker):
     def f(x):
         return x
 
+    lambda_executor._upload_task = MagicMock()
+    lambda_executor.submit_task = MagicMock()
+    lambda_executor._poll_task = MagicMock()
     lambda_executor.get_session = MagicMock()
-    lambda_executor._create_lambda = MagicMock()
-    lambda_executor.sumbit_task = MagicMock()
+
     lambda_executor._query_result = MagicMock()
-    lambda_executor._cleanup = MagicMock()
-    session_mock = mocker.patch(
-        "covalent_awslambda_plugin.awslambda.AWSLambdaExecutor.get_session",
-        return_value=MagicMock(),
-    )
-    mocker.patch("covalent_awslambda_plugin.awslambda.app_log")
+
     mocker.patch("covalent_awslambda_plugin.awslambda.os.path.join")
     file_open_mock = mocker.patch("covalent_awslambda_plugin.awslambda.open")
     pickle_dump_mock = mocker.patch("covalent_awslambda_plugin.awslambda.pickle.dump")
@@ -217,26 +213,19 @@ def test_function_pickle_dump(lambda_executor, mocker):
     pickle_dump_mock.assert_called_once()
 
 
-@pytest.mark.skip("Hanging")
 def test_upload_fileobj(lambda_executor, mocker):
-    def f(x):
-        return x
 
     lambda_executor.get_session = MagicMock()
-    lambda_executor._create_lambda = MagicMock()
-    lambda_executor.submit_task = MagicMock()
-    lambda_executor._query_result = MagicMock()
-    lambda_executor._cleanup = MagicMock()
 
     mocker.patch("covalent_awslambda_plugin.awslambda.app_log")
     mocker.patch("covalent_awslambda_plugin.awslambda.os.path.join")
     file_open_mock = mocker.patch("covalent_awslambda_plugin.awslambda.open")
     mocker.patch("covalent_awslambda_plugin.awslambda.pickle.dump")
 
-    lambda_executor.run(f, 1, {}, {"dispatch_id": "aabbcc", "node_id": 0})
+    lambda_executor._upload_task("test_workdir", "test_func_filename")
 
-    assert file_open_mock.call_count == 2
-    file_open_mock.return_value.__enter__.call_count == 2
+    file_open_mock.assert_called_once()
+
     lambda_executor.get_session.assert_called_once()
     lambda_executor.get_session.return_value.__enter__.assert_called_once()
     lambda_executor.get_session.return_value.__enter__.return_value.client.assert_called_once_with(
@@ -266,11 +255,11 @@ def test_upload_fileobj_exception(lambda_executor, mocker):
     app_log_mock = mocker.patch("covalent_awslambda_plugin.awslambda.app_log")
 
     with pytest.raises(botocore.exceptions.ClientError):
-        lambda_executor.run(f, 1, {}, {"dispatch_id": "aabbcc", "node_id": 0})
+        lambda_executor._upload_task("test_workdir", "test_func_filename")
         app_log_mock.exception.assert_called_with(client_error_mock)
 
 
-def test_upload_file(lambda_executor, mocker):
+def test_setup(lambda_executor, mocker):
     dispatch_id = "aabbcc"
     node_id = 0
     target_metdata = {"dispatch_id": dispatch_id, "node_id": node_id}
@@ -300,7 +289,7 @@ def test_upload_file(lambda_executor, mocker):
     lambda_executor.get_session.return_value.__enter__.return_value.client.return_value.upload_file.assert_called()
 
 
-def test_upload_file_exception(lambda_executor, mocker):
+def test_setup_exception(lambda_executor, mocker):
     dispatch_id = "aabbcc"
     node_id = 0
     task_metdata = {"dispatch_id": dispatch_id, "node_id": node_id}
