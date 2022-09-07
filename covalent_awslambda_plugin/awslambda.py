@@ -293,7 +293,7 @@ class AWSLambdaExecutor(AWSExecutor):
             iam_client = session.client("iam")
             role_arn = None
             try:
-                response = iam_client.get_role(RoleName=f"{self.role_name}")
+                response = iam_client.get_role(RoleName=f"{self.execution_role}")
                 role_arn = response["Role"]["Arn"]
             except botocore.exceptions.ClientError as ce:
                 app_log.exception(ce)
@@ -350,6 +350,9 @@ class AWSLambdaExecutor(AWSExecutor):
 
         Args:
             object_key: Name of the S3 object
+
+        Returns:
+            bool indicating whether the object exists or not on S3 bucket
         """
 
         with self.get_session() as session:
@@ -362,6 +365,7 @@ class AWSLambdaExecutor(AWSExecutor):
                         for item in s3_client.list_objects(Bucket=self.s3_bucket_name)["Contents"]
                     ]
                     self._key_exists = object_key in current_keys
+                    return self._key_exists
                 except botocore.exceptions.ClientError as ce:
                     app_log.exception(ce)
                     raise
