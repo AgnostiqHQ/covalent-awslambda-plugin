@@ -49,9 +49,9 @@ _EXECUTOR_PLUGIN_DEFAULTS = {
     or os.path.join(os.environ.get("HOME"), ".aws/credentials"),
     "profile": os.environ.get("AWS_PROFILE") or "default",
     "region": os.environ.get("AWS_REGION") or "us-east-1",
-    "lambda_role_name": "CovalentLambdaExecutionRole",
     "s3_bucket_name": "covalent-lambda-job-resources",
-    "cache_dir": os.path.join(os.environ["HOME"], ".cache/covalent"),
+    "execution_role": "CovalentLambdaExecutionRole",
+    "log_group_name": "covalent-lambda-log-group",
     "poll_freq": 5,
     "timeout": 60,
     "memory_size": 512,
@@ -63,6 +63,32 @@ FUNC_FILENAME = "func-{dispatch_id}-{node_id}.pkl"
 RESULT_FILENAME = "result-{dispatch_id}-{node_id}.pkl"
 LAMBDA_DEPLOYMENT_ARCHIVE_NAME = "archive-{dispatch_id}-{node_id}.zip"
 LAMBDA_FUNCTION_SCRIPT_NAME = "lambda_function.py"
+
+
+class AWSExecutor(BaseExecutor):
+    def __init__(
+        self,
+        credentials: str = None,
+        profile: str = None,
+        region: str = None,
+        s3_bucket_name: str = None,
+        execution_role: str = None,
+        log_group_name: str = None,
+    ) -> None:
+
+        self.credentials = credentials or get_config("executors.awslambda.credentials")
+        self.profile = profile or get_config("executors.awslambda.profile")
+        self.region = region or get_config("executors.awslambda.region")
+        self.s3_bucket_name = s3_bucket_name or get_config("executors.awslambda.s3_bucket_name")
+        self.execution_role = execution_role or get_config("executors.awslambda.execution_role")
+        self.log_group_name = log_group_name or get_config("executors.awslambda.log_group_name")
+
+        # Set cloud environment variables
+        os.environ["AWS_SHARED_CREDENTIALS_FILE"] = f"{self.credentials}"
+        os.environ["AWS_PROFILE"] = f"{self.profile}"
+        os.environ["AWS_REGION"] = f"{self.region}"
+
+        super().__init__()
 
 
 class DeploymentPackageBuilder:
@@ -146,16 +172,15 @@ class DeploymentPackageBuilder:
         pass
 
 
-class AWSLambdaExecutor(BaseExecutor):
+class AWSLambdaExecutor(AWSExecutor):
     """AWS Lambda executor plugin
 
     Args:
         credentials: Path to AWS credentials file (default: `~/.aws/credentials`)
         profile: AWS profile (default: `default`)
         region: AWS region (default: `us-east-1`)
-        lambda_role_name: AWS IAM role name use to provision the Lambda function (default: `CovalentLambdaExecutionRole`)
         s3_bucket_name: Name of a AWS S3 bucket that the executor can use to store temporary files (default: `covalent-lambda-job-resources`)
-        cache_dir: Path on the local file system to a cache directory (default: `~/.cache/covalent`)
+        execution_role: AWS IAM role name use to provision the Lambda function (default: `CovalentLambdaExecutionRole`)
         poll_freq: Time interval between successive polls to the lambda function (default: `5`)
         timeout: Duration in seconds before the Lambda function times out (default: `60`)
         cleanup: Flag represents whether or not to cleanup temporary files generated during execution (default: `True`)
@@ -163,37 +188,36 @@ class AWSLambdaExecutor(BaseExecutor):
 
     def __init__(
         self,
-        credentials: str = None,
-        profile: str = None,
-        region: str = None,
-        lambda_role_name: str = None,
-        s3_bucket_name: str = None,
-        cache_dir: str = None,
+        credentials: str,
+        profile: str,
+        region: str,
+        s3_bucket_name: str,
+        execution_role: str,
         poll_freq: int = None,
         timeout: int = None,
         memory_size: int = None,
         cleanup: bool = False,
-        **kwargs,
     ) -> None:
-        super().__init__(cache_dir=cache_dir, **kwargs)
 
-        self.credentials = credentials or get_config("executors.awslambda.credentials")
-        self.profile = profile or get_config("executors.awslambda.profile")
-        self.region = region or get_config("executors.awslambda.region")
-        self.s3_bucket_name = s3_bucket_name or get_config("executors.awslambda.s3_bucket_name")
-        self.role_name = lambda_role_name or get_config("executors.awslambda.lambda_role_name")
-        self.cache_dir = cache_dir or os.path.join(os.environ["HOME"], ".cache/covalent")
+        # AWSExecutor parameters
+        required_attrs = {
+            "credentials": credentials or get_config("executors.awslambda.credentials"),
+            "profile": profile or get_config("executors.awslambda.profile"),
+            "region": region or get_config("executors.awslambda.region"),
+            "s3_bucket_name": s3_bucket_name or get_config("executors.awslambda.s3_bucket_name"),
+            "execution_role": execution_role or get_config("executors.awslambda.execution_role"),
+        }
+
+        super().__init__(**required_attrs)
+
+        # Lambda executor parameters
         self.poll_freq = poll_freq or get_config("executors.awslambda.poll_freq")
         self.timeout = timeout or get_config("executors.awslambda.timeout")
         self.memory_size = memory_size or get_config("executors.awslambda.memory_size")
         self.cleanup = cleanup
+
         self._cwd = tempfile.mkdtemp()
         self._key_exists = False
-
-        # Set cloud environment variables
-        os.environ["AWS_SHARED_CREDENTIALS_FILE"] = f"{self.credentials}"
-        os.environ["AWS_PROFILE"] = f"{self.profile}"
-        os.environ["AWS_REGION"] = f"{self.region}"
 
     @contextmanager
     def get_session(self) -> Session:
@@ -206,6 +230,29 @@ class AWSLambdaExecutor(BaseExecutor):
             session: AWS boto3.Session object
         """
         yield boto3.Session(profile_name=self.profile, region_name=self.region)
+
+    def _upload_task(self, workdir: str, func_filename: str):
+        """
+        Upload the function file to remote
+
+        Args:
+            workdir: Work dir on remote to upload file to
+            func_filename: Name of the function file
+
+        Returns:
+            None
+        """
+
+        app_log.debug(f"Uploading function to S3 bucket {self.s3_bucket_name}")
+        with self.get_session() as session:
+            client = session.client("s3")
+            try:
+                with open(os.path.join(workdir, func_filename), "rb") as f:
+                    client.upload_fileobj(f, self.s3_bucket_name, func_filename)
+            except botocore.exceptions.ClientError as ce:
+                app_log.exception(ce)
+                raise
+        app_log.debug(f"Function {func_filename} uploaded to S3 bucket {self.s3_bucket_name}")
 
     def _is_lambda_active(self, function_name: str):
         """Check if the lambda function is active of not
@@ -246,11 +293,11 @@ class AWSLambdaExecutor(BaseExecutor):
             iam_client = session.client("iam")
             role_arn = None
             try:
-                response = iam_client.get_role(RoleName=f"{self.role_name}")
+                response = iam_client.get_role(RoleName=f"{self.execution_role}")
                 role_arn = response["Role"]["Arn"]
             except botocore.exceptions.ClientError as ce:
                 app_log.exception(ce)
-                exit(1)
+                raise
 
         lambda_create_kwargs = {
             "FunctionName": f"{function_name}",
@@ -271,14 +318,14 @@ class AWSLambdaExecutor(BaseExecutor):
                 app_log.debug(f"Lambda function: {function_name} created: {response}")
             except botocore.exceptions.ClientError as ce:
                 app_log.exception(ce)
-                exit(1)
+                raise
 
         # Check if lambda is active
-        lambda_state = "Active" if self._is_lambda_active(function_name) else None
-        return lambda_state
+        return "Active" if self._is_lambda_active(function_name) else None
 
-    def _invoke_lambda(self, function_name: str) -> Dict:
-        """Invoke the AWS Lambda function
+    def submit_task(self, function_name: str) -> Dict:
+        """
+        Submit the task by invoking the AWS Lambda function
 
         Args:
             function_name: AWS Lambda function name
@@ -286,41 +333,60 @@ class AWSLambdaExecutor(BaseExecutor):
         Returns:
             response: AWS boto3 client invoke lambda response
         """
+
+        app_log.debug(f"Invoking AWS Lambda function {function_name}")
+
         with self.get_session() as session:
             client = session.client("lambda")
             try:
-                response = client.invoke(FunctionName=function_name)
-                return response
+                return client.invoke(FunctionName=function_name)
             except botocore.exceptions.ClientError as ce:
                 app_log.exception(ce)
-                exit(1)
+                raise
 
-    def _is_key_in_bucket(self, object_key):
-        """Return True if the object is present in the S3 bucket
+    def get_status(self, object_key: str):
+        """
+        Return status of availability of result object on remote machine
+
+        Args:
+            object_key: Name of the S3 object
+
+        Returns:
+            bool indicating whether the object exists or not on S3 bucket
+        """
+
+        with self.get_session() as session:
+            while not self._key_exists:
+                s3_client = session.client("s3")
+
+                try:
+                    current_keys = [
+                        item["Key"]
+                        for item in s3_client.list_objects(Bucket=self.s3_bucket_name)["Contents"]
+                    ]
+                    self._key_exists = object_key in current_keys
+                    return self._key_exists
+                except botocore.exceptions.ClientError as ce:
+                    app_log.exception(ce)
+                    raise
+
+        return self._key_exists
+
+    def _poll_task(self, object_key: str):
+        """
+        Poll task until its result is ready
 
         Args:
             object_key: Name of the object to check if present in S3
-
-        Returns:
-            bool: True/False
         """
-        with self.get_session() as session:
-            s3_client = session.client("s3")
-            try:
-                current_keys = [
-                    item["Key"]
-                    for item in s3_client.list_objects(Bucket=self.s3_bucket_name)["Contents"]
-                ]
-                if object_key in current_keys:
-                    return True
-                else:
-                    return False
-            except botocore.exceptions.ClientError as ce:
-                app_log.exception(ce)
-                exit(1)
 
-    def _get_result_object(self, workdir: str, result_filename: str):
-        """Fetch the result object from the S3 bucket
+        while not self.get_status(object_key):
+            app_log.debug(f"Polling object: {object_key}")
+            time.sleep(self.poll_freq)
+
+    def _query_result(self, workdir: str, result_filename: str):
+        """
+        Fetch the result object from the S3 bucket
 
         Args:
             workdir: Path on the local file system where the pickled object is downloaded
@@ -328,10 +394,6 @@ class AWSLambdaExecutor(BaseExecutor):
         Returns:
             None
         """
-        with self.get_session() as session:
-            while not self._key_exists:
-                self._key_exists = self._is_key_in_bucket(result_filename)
-                time.sleep(0.1)
 
         if self._key_exists:
             with self.get_session() as session:
@@ -345,7 +407,7 @@ class AWSLambdaExecutor(BaseExecutor):
                     )
                 except botocore.exceptions.ClientError as ce:
                     app_log.exception(ce)
-                    exit(1)
+                    raise
 
         with open(os.path.join(workdir, result_filename), "rb") as f:
             result_object = pickle.load(f)
@@ -409,7 +471,7 @@ class AWSLambdaExecutor(BaseExecutor):
                 )
             except botocore.exceptions.ClientError as ce:
                 app_log.exception(ce)
-                exit(1)
+                raise
 
         app_log.debug(f"Lambda deployment archive: {deployment_archive_name} uploaded to S3 ... ")
 
@@ -448,26 +510,19 @@ class AWSLambdaExecutor(BaseExecutor):
         with open(os.path.join(workdir, func_filename), "wb") as f:
             pickle.dump((function, args, kwargs), f)
 
-        app_log.debug(f"Uploading function to S3 bucket {self.s3_bucket_name}")
         # Upload pickled file to s3 bucket created
-        with self.get_session() as session:
-            client = session.client("s3")
-            try:
-                with open(os.path.join(workdir, func_filename), "rb") as f:
-                    client.upload_fileobj(f, self.s3_bucket_name, func_filename)
-            except botocore.exceptions.ClientError as ce:
-                app_log.exception(ce)
-                exit(1)
-        app_log.debug(f"Function {func_filename} uploaded to S3 bucket {self.s3_bucket_name}")
+        self._upload_task(workdir, func_filename)
 
         # Invoke the created lambda
-        app_log.debug(f"Invoking AWS Lambda function {lambda_function_name}")
-        lambda_invocation_response = self._invoke_lambda(lambda_function_name)
+        lambda_invocation_response = self.submit_task(lambda_function_name)
         app_log.debug(f"Lambda function response: {lambda_invocation_response}")
+
+        # Poll task
+        self._poll_task(result_filename)
 
         # Download the result object
         app_log.debug(f"Retrieving result for task - {dispatch_id} - {node_id}")
-        result_object = self._get_result_object(workdir, result_filename)
+        result_object = self._query_result(workdir, result_filename)
         app_log.debug(f"Result retrived for task - {dispatch_id} - {node_id}")
 
         return result_object
@@ -492,37 +547,46 @@ class AWSLambdaExecutor(BaseExecutor):
 
         if self.cleanup:
             with self.get_session() as session:
+
                 app_log.debug(f"Cleaning up resources created in S3 bucket {self.s3_bucket_name}")
                 s3_resource = session.resource("s3")
+
                 try:
                     s3_resource.Object(
                         self.s3_bucket_name,
                         FUNC_FILENAME.format(dispatch_id=dispatch_id, node_id=node_id),
                     ).delete()
+
                     s3_resource.Object(
                         self.s3_bucket_name,
                         RESULT_FILENAME.format(dispatch_id=dispatch_id, node_id=node_id),
                     ).delete()
+
                     s3_resource.Object(
                         self.s3_bucket_name,
                         LAMBDA_DEPLOYMENT_ARCHIVE_NAME.format(
                             dispatch_id=dispatch_id, node_id=node_id
                         ),
                     ).delete()
+
                     app_log.debug(f"All objects from bucket {self.s3_bucket_name} deleted")
+
                 except botocore.exceptions.ClientError as ce:
                     app_log.exception(ce)
-                    exit(1)
+                    raise
+
                 app_log.debug("Cleanup of resources in S3 bucket finished")
 
                 app_log.debug(f"Deleting lambda function {lambda_function_name}")
                 lambda_client = session.client("lambda")
+
                 try:
                     response = lambda_client.delete_function(FunctionName=lambda_function_name)
                     app_log.debug(f"Lambda cleanup response: {response}")
                 except botocore.exceptions.ClientError as ce:
                     app_log.exception(ce)
-                    exit(1)
+                    raise
+
                 app_log.debug(f"Lambda function {lambda_function_name} deleted")
 
                 app_log.debug(f"Cleaning up working directory {workdir}")
