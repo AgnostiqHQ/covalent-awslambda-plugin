@@ -7,8 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
-## [0.6.0] - 2022-09-06
+### Changed
 
+- Inheriting from `AWSExecutor` now instead fof `BaseExecutor` directly
+
+### Tests
+
+- Updated tests to reflect above changes
+
+## [0.6.0] - 2022-09-06
 
 ### Added
 
