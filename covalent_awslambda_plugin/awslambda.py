@@ -35,7 +35,7 @@ import cloudpickle as pickle
 from boto3.session import Session
 from covalent._shared_files import logger
 from covalent._shared_files.config import get_config
-from covalent.executor import BaseExecutor
+from covalent_aws_plugins import AWSExecutor
 
 from .scripts import PYTHON_EXEC_SCRIPT
 
@@ -63,32 +63,6 @@ FUNC_FILENAME = "func-{dispatch_id}-{node_id}.pkl"
 RESULT_FILENAME = "result-{dispatch_id}-{node_id}.pkl"
 LAMBDA_DEPLOYMENT_ARCHIVE_NAME = "archive-{dispatch_id}-{node_id}.zip"
 LAMBDA_FUNCTION_SCRIPT_NAME = "lambda_function.py"
-
-
-class AWSExecutor(BaseExecutor):
-    def __init__(
-        self,
-        credentials: str = None,
-        profile: str = None,
-        region: str = None,
-        s3_bucket_name: str = None,
-        execution_role: str = None,
-        log_group_name: str = None,
-    ) -> None:
-
-        self.credentials = credentials or get_config("executors.awslambda.credentials")
-        self.profile = profile or get_config("executors.awslambda.profile")
-        self.region = region or get_config("executors.awslambda.region")
-        self.s3_bucket_name = s3_bucket_name or get_config("executors.awslambda.s3_bucket_name")
-        self.execution_role = execution_role or get_config("executors.awslambda.execution_role")
-        self.log_group_name = log_group_name or get_config("executors.awslambda.log_group_name")
-
-        # Set cloud environment variables
-        os.environ["AWS_SHARED_CREDENTIALS_FILE"] = f"{self.credentials}"
-        os.environ["AWS_PROFILE"] = f"{self.profile}"
-        os.environ["AWS_REGION"] = f"{self.region}"
-
-        super().__init__()
 
 
 class DeploymentPackageBuilder:
@@ -229,7 +203,7 @@ class AWSLambdaExecutor(AWSExecutor):
         Returns:
             session: AWS boto3.Session object
         """
-        yield boto3.Session(profile_name=self.profile, region_name=self.region)
+        yield boto3.Session(**self.boto_session_options())
 
     def _upload_task(self, workdir: str, func_filename: str):
         """

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+### Fixed
+
+- Removed the temporary `AWSExecutor` and now using the correct `AWSExecutor`
+
 ## [0.7.0] - 2022-09-07
 
 ### Changed
