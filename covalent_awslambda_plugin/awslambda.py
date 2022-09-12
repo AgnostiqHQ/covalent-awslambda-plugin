@@ -389,7 +389,7 @@ class AWSLambdaExecutor(AWSExecutor):
 
         return result_object
 
-    def setup(self, task_metadata: Dict):
+    async def setup(self, task_metadata: Dict):
         """AWS Lambda specific setup tasks
 
         Args:
@@ -457,7 +457,7 @@ class AWSLambdaExecutor(AWSExecutor):
 
         app_log.debug(f"Finished setup for task - {dispatch_id}-{node_id} ... ")
 
-    def run(self, function: Callable, args: List, kwargs: Dict, task_metadata: Dict):
+    async def run(self, function: Callable, args: List, kwargs: Dict, task_metadata: Dict):
         """Run the executor
 
         Args:
@@ -508,7 +508,7 @@ class AWSLambdaExecutor(AWSExecutor):
         """
         raise NotImplementedError("Cancellation is currently not supported")
 
-    def teardown(self, task_metadata: Dict):
+    async def teardown(self, task_metadata: Dict):
         """Cleanup temporary files and the Lambda function
 
         Args:

@@ -24,7 +24,7 @@ import os
 
 import botocore.exceptions
 import pytest
-from mock import MagicMock, call
+from mock import AsyncMock, MagicMock, call
 
 from covalent_awslambda_plugin import AWSLambdaExecutor, DeploymentPackageBuilder
 
@@ -68,7 +68,8 @@ def test_init():
     assert awslambda.cleanup
 
 
-def test_setup_and_teardown_are_invoked(lambda_executor, mocker):
+@pytest.mark.asyncio
+async def test_setup_and_teardown_are_invoked(lambda_executor, mocker):
     "Simply assert that the setup, run and teardown methods are invoked when execute is called"
     lambda_executor.get_session = MagicMock()
     lambda_executor._is_lambda_active = MagicMock()
@@ -76,18 +77,19 @@ def test_setup_and_teardown_are_invoked(lambda_executor, mocker):
     lambda_executor.submit_task = MagicMock()
     lambda_executor.get_status = MagicMock()
     lambda_executor.query_result = MagicMock()
-    lambda_executor.setup = MagicMock()
-    lambda_executor.run = MagicMock()
-    lambda_executor.teardown = MagicMock()
+    lambda_executor.setup = AsyncMock()
+    lambda_executor.run = AsyncMock()
+    lambda_executor.teardown = AsyncMock()
 
-    lambda_executor.execute(MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock())
+    await lambda_executor.execute(MagicMock(), MagicMock(), MagicMock(), MagicMock(), MagicMock())
 
-    lambda_executor.setup.assert_called_once()
-    lambda_executor.run.assert_called_once()
-    lambda_executor.teardown.assert_called_once()
+    lambda_executor.setup.assert_awaited_once()
+    lambda_executor.run.assert_awaited_once()
+    lambda_executor.teardown.assert_awaited_once()
 
 
-def test_setup_workdir_create(lambda_executor, mocker):
+@pytest.mark.asyncio
+async def test_setup_workdir_create(lambda_executor, mocker):
     dispatch_id = "aabbcc"
     node_id = 0
     task_metadata = {"dispatch_id": dispatch_id, "node_id": node_id}
@@ -111,13 +113,14 @@ def test_setup_workdir_create(lambda_executor, mocker):
         "covalent_awslambda_plugin.awslambda.DeploymentPackageBuilder", return_value=MagicMock()
     )
 
-    lambda_executor.setup(task_metadata)
+    await lambda_executor.setup(task_metadata)
 
     os_path_exists_mock.assert_called_once()
     os_mkdir_mock.assert_called_once()
 
 
-def test_deployment_package_builder(lambda_executor, mocker):
+@pytest.mark.asyncio
+async def test_deployment_package_builder(lambda_executor, mocker):
     """Test if the deployment package builder context manager enter method is invoked"""
     dispatch_id = "aabbcc"
     node_id = 0
@@ -139,7 +142,7 @@ def test_deployment_package_builder(lambda_executor, mocker):
     mocker.patch("covalent_awslambda_plugin.awslambda.os.mkdir")
     mocker.patch("covalent_awslambda_plugin.awslambda.open")
 
-    lambda_executor.setup(task_metadata)
+    await lambda_executor.setup(task_metadata)
 
     deployment_package_builder_mock.return_value.__enter__.assert_called_once()
     deployment_package_builder_mock.return_value.__exit__.assert_called_once()
@@ -188,7 +191,8 @@ def test_deployment_package_builder_install_method(mocker):
     assert subprocess_mock.call_count == 2
 
 
-def test_function_pickle_dump(lambda_executor, mocker):
+@pytest.mark.asyncio
+async def test_function_pickle_dump(lambda_executor, mocker):
     def f(x):
         return x
 
@@ -203,7 +207,7 @@ def test_function_pickle_dump(lambda_executor, mocker):
     file_open_mock = mocker.patch("covalent_awslambda_plugin.awslambda.open")
     pickle_dump_mock = mocker.patch("covalent_awslambda_plugin.awslambda.pickle.dump")
 
-    lambda_executor.run(f, 1, {}, {"dispatch_id": "aabbcc", "node_id": 0})
+    await lambda_executor.run(f, 1, {}, {"dispatch_id": "aabbcc", "node_id": 0})
 
     file_open_mock.return_value.__enter__.assert_called()
     pickle_dump_mock.assert_called_once()
@@ -255,7 +259,8 @@ def test_upload_fileobj_exception(lambda_executor, mocker):
         app_log_mock.exception.assert_called_with(client_error_mock)
 
 
-def test_setup(lambda_executor, mocker):
+@pytest.mark.asyncio
+async def test_setup(lambda_executor, mocker):
     dispatch_id = "aabbcc"
     node_id = 0
     target_metdata = {"dispatch_id": dispatch_id, "node_id": node_id}
@@ -277,7 +282,7 @@ def test_setup(lambda_executor, mocker):
     mocker.patch("covalent_awslambda_plugin.awslambda.ZipFile")
     mocker.patch("covalent_awslambda_plugin.awslambda.open")
 
-    lambda_executor.setup(target_metdata)
+    await lambda_executor.setup(target_metdata)
 
     lambda_executor.get_session.assert_called()
     lambda_executor.get_session.return_value.__enter__.assert_called()
@@ -285,7 +290,8 @@ def test_setup(lambda_executor, mocker):
     lambda_executor.get_session.return_value.__enter__.return_value.client.return_value.upload_file.assert_called()
 
 
-def test_setup_exception(lambda_executor, mocker):
+@pytest.mark.asyncio
+async def test_setup_exception(lambda_executor, mocker):
     dispatch_id = "aabbcc"
     node_id = 0
     task_metdata = {"dispatch_id": dispatch_id, "node_id": node_id}
@@ -314,7 +320,7 @@ def test_setup_exception(lambda_executor, mocker):
     )
 
     with pytest.raises(botocore.exceptions.ClientError):
-        lambda_executor.setup(task_metdata)
+        await lambda_executor.setup(task_metdata)
 
         lambda_executor.get_session.assert_called()
         lambda_executor.get_session.return_value.__enter__.assert_called()
@@ -324,7 +330,8 @@ def test_setup_exception(lambda_executor, mocker):
         app_log_mock.exception.assert_called_once()
 
 
-def test_create_lambda_invocation(lambda_executor, mocker):
+@pytest.mark.asyncio
+async def test_create_lambda_invocation(lambda_executor, mocker):
     """Test to see if create lambda method gets invoked"""
     dispatch_id = "aabbcc"
     node_id = 0
@@ -345,7 +352,7 @@ def test_create_lambda_invocation(lambda_executor, mocker):
     mocker.patch("covalent_awslambda_plugin.awslambda.ZipFile")
     mocker.patch("covalent_awslambda_plugin.awslambda.open")
 
-    lambda_executor.setup(task_metadata)
+    await lambda_executor.setup(task_metadata)
 
     lambda_executor._create_lambda.assert_called_once_with(
         f"lambda-{dispatch_id}-{node_id}", f"archive-{dispatch_id}-{node_id}.zip"
@@ -610,7 +617,8 @@ def test_query_result_exception(lambda_executor, mocker):
         pickle_load_mock.assert_called_once_with(open_mock.return_value.__enter__.return_value)
 
 
-def test_teardown(lambda_executor, mocker):
+@pytest.mark.asyncio
+async def test_teardown(lambda_executor, mocker):
     dispatch_id = "aabbcc"
     node_id = 1
     task_metadata = {"dispatch_id": dispatch_id, "node_id": node_id}
@@ -630,7 +638,7 @@ def test_teardown(lambda_executor, mocker):
     session_client_mock = session_mock.return_value.__enter__.return_value.client
     lambda_client_mock = session_client_mock.return_value
 
-    lambda_executor.teardown(task_metadata)
+    await lambda_executor.teardown(task_metadata)
 
     session_resource_mock.assert_called_with("s3")
     session_object_mock.assert_has_calls(
@@ -648,7 +656,8 @@ def test_teardown(lambda_executor, mocker):
     shutil_rmtree_mock.assert_called_once()
 
 
-def test_teardown_exception(lambda_executor, mocker):
+@pytest.mark.asyncio
+async def test_teardown_exception(lambda_executor, mocker):
     session_mock = mocker.patch(
         "covalent_awslambda_plugin.awslambda.AWSLambdaExecutor.get_session",
         return_value=MagicMock(),
@@ -680,7 +689,7 @@ def test_teardown_exception(lambda_executor, mocker):
     shutil_rmtree_mock = mocker.patch("covalent_awslambda_plugin.awslambda.shutil.rmtree")
 
     with pytest.raises(botocore.exceptions.ClientError):
-        lambda_executor.teardown(task_metadata)
+        await lambda_executor.teardown(task_metadata)
         s3_resource_mock.assert_called_once_with("s3")
         app_log_mock.exception.assert_called_with(client_error_mock)
         client_mock.assert_called_once_with("lambda")
