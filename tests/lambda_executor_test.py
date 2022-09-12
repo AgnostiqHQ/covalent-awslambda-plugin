@@ -32,7 +32,7 @@ from covalent_awslambda_plugin import AWSLambdaExecutor, DeploymentPackageBuilde
 @pytest.fixture
 def lambda_executor():
     return AWSLambdaExecutor(
-        credentials="~/.aws/credentials",
+        credentials_file="~/.aws/credentials",
         profile="test_profile",
         region="us-east-1",
         s3_bucket_name="test_bucket_name",
@@ -46,7 +46,7 @@ def lambda_executor():
 
 def test_init():
     awslambda = AWSLambdaExecutor(
-        credentials="~/.aws/credentials",
+        credentials_file="~/.aws/credentials",
         profile="test_profile",
         region="us-east-1",
         execution_role="test_lambda_role",
@@ -57,7 +57,7 @@ def test_init():
         cleanup=True,
     )
 
-    assert awslambda.credentials == "~/.aws/credentials"
+    assert awslambda.credentials_file == "~/.aws/credentials"
     assert awslambda.profile == "test_profile"
     assert awslambda.region == "us-east-1"
     assert awslambda.execution_role == "test_lambda_role"
@@ -66,10 +66,6 @@ def test_init():
     assert awslambda.timeout == 10
     assert awslambda.memory_size == 512
     assert awslambda.cleanup
-
-    assert os.environ["AWS_SHARED_CREDENTIALS_FILE"] == awslambda.credentials
-    assert os.environ["AWS_PROFILE"] == awslambda.profile
-    assert os.environ["AWS_REGION"] == awslambda.region
 
 
 def test_setup_and_teardown_are_invoked(lambda_executor, mocker):

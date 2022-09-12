@@ -45,7 +45,7 @@ log_stack_info = logger.log_stack_info
 executor_plugin_name = "AWSLambdaExecutor"
 
 _EXECUTOR_PLUGIN_DEFAULTS = {
-    "credentials": os.environ.get("AWS_SHARED_CREDENTIALS_FILE")
+    "credentials_file": os.environ.get("AWS_SHARED_CREDENTIALS_FILE")
     or os.path.join(os.environ.get("HOME"), ".aws/credentials"),
     "profile": os.environ.get("AWS_PROFILE") or "default",
     "region": os.environ.get("AWS_REGION") or "us-east-1",
@@ -150,7 +150,7 @@ class AWSLambdaExecutor(AWSExecutor):
     """AWS Lambda executor plugin
 
     Args:
-        credentials: Path to AWS credentials file (default: `~/.aws/credentials`)
+        credentials_file: Path to AWS credentials file (default: `~/.aws/credentials`)
         profile: AWS profile (default: `default`)
         region: AWS region (default: `us-east-1`)
         s3_bucket_name: Name of a AWS S3 bucket that the executor can use to store temporary files (default: `covalent-lambda-job-resources`)
@@ -162,7 +162,7 @@ class AWSLambdaExecutor(AWSExecutor):
 
     def __init__(
         self,
-        credentials: str,
+        credentials_file: str,
         profile: str,
         region: str,
         s3_bucket_name: str,
@@ -175,7 +175,8 @@ class AWSLambdaExecutor(AWSExecutor):
 
         # AWSExecutor parameters
         required_attrs = {
-            "credentials": credentials or get_config("executors.awslambda.credentials"),
+            "credentials_file": credentials_file
+            or get_config("executors.awslambda.credentials_file"),
             "profile": profile or get_config("executors.awslambda.profile"),
             "region": region or get_config("executors.awslambda.region"),
             "s3_bucket_name": s3_bucket_name or get_config("executors.awslambda.s3_bucket_name"),
