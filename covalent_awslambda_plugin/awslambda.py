@@ -358,7 +358,7 @@ class AWSLambdaExecutor(AWSExecutor):
             app_log.debug(f"Polling object: {object_key}")
             time.sleep(self.poll_freq)
 
-    def _query_result(self, workdir: str, result_filename: str):
+    def query_result(self, workdir: str, result_filename: str):
         """
         Fetch the result object from the S3 bucket
 
@@ -496,10 +496,16 @@ class AWSLambdaExecutor(AWSExecutor):
 
         # Download the result object
         app_log.debug(f"Retrieving result for task - {dispatch_id} - {node_id}")
-        result_object = self._query_result(workdir, result_filename)
+        result_object = self.query_result(workdir, result_filename)
         app_log.debug(f"Result retrived for task - {dispatch_id} - {node_id}")
 
         return result_object
+
+    def cancel(self) -> None:
+        """
+        Cancel execution
+        """
+        raise NotImplementedError("Cancellation is currently not supported")
 
     def teardown(self, task_metadata: Dict):
         """Cleanup temporary files and the Lambda function

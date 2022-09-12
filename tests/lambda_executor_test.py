@@ -79,7 +79,7 @@ def test_setup_and_teardown_are_invoked(lambda_executor, mocker):
     lambda_executor._create_lambda = MagicMock()
     lambda_executor.submit_task = MagicMock()
     lambda_executor.get_status = MagicMock()
-    lambda_executor._query_result = MagicMock()
+    lambda_executor.query_result = MagicMock()
     lambda_executor.setup = MagicMock()
     lambda_executor.run = MagicMock()
     lambda_executor.teardown = MagicMock()
@@ -201,7 +201,7 @@ def test_function_pickle_dump(lambda_executor, mocker):
     lambda_executor._poll_task = MagicMock()
     lambda_executor.get_session = MagicMock()
 
-    lambda_executor._query_result = MagicMock()
+    lambda_executor.query_result = MagicMock()
 
     mocker.patch("covalent_awslambda_plugin.awslambda.os.path.join")
     file_open_mock = mocker.patch("covalent_awslambda_plugin.awslambda.open")
@@ -242,7 +242,7 @@ def test_upload_fileobj_exception(lambda_executor, mocker):
     lambda_executor.get_session = MagicMock()
     lambda_executor._create_lambda = MagicMock()
     lambda_executor.submit_task = MagicMock()
-    lambda_executor._query_result = MagicMock()
+    lambda_executor.query_result = MagicMock()
     lambda_executor._cleanup = MagicMock()
 
     client_error_mock = botocore.exceptions.ClientError(MagicMock(), MagicMock())
@@ -571,7 +571,7 @@ def test_query_result(lambda_executor, mocker):
 
     lambda_executor.get_status = MagicMock(return_value=True)
 
-    lambda_executor._query_result(workdir, result_filename)
+    lambda_executor.query_result(workdir, result_filename)
 
     session_client_mock.assert_called_once_with("s3")
     s3_client_mock.assert_called_once_with(
@@ -601,7 +601,7 @@ def test_query_result_exception(lambda_executor, mocker):
     app_log_mock = mocker.patch("covalent_awslambda_plugin.awslambda.app_log")
 
     with pytest.raises(botocore.exceptions.ClientError):
-        lambda_executor._query_result(workdir, result_filename)
+        lambda_executor.query_result(workdir, result_filename)
 
         session_client_mock.assert_called_once_with("s3")
 
