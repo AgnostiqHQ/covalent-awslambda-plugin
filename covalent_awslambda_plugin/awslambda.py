@@ -18,6 +18,7 @@
 #
 # Relief from the License may be granted by purchasing a commercial license.
 
+import asyncio
 import os
 import pathlib
 import shutil
@@ -31,11 +32,12 @@ from zipfile import ZipFile
 
 import boto3
 import botocore.exceptions
-import cloudpickle as pickle
 from boto3.session import Session
-from covalent._shared_files import logger
 from covalent._shared_files.config import get_config
 from covalent_aws_plugins import AWSExecutor
+
+import cloudpickle as pickle
+from covalent._shared_files import logger
 
 from .scripts import PYTHON_EXEC_SCRIPT
 
@@ -51,7 +53,6 @@ _EXECUTOR_PLUGIN_DEFAULTS = {
     "region": os.environ.get("AWS_REGION") or "us-east-1",
     "s3_bucket_name": "covalent-lambda-job-resources",
     "execution_role": "CovalentLambdaExecutionRole",
-    "log_group_name": "covalent-lambda-log-group",
     "poll_freq": 5,
     "timeout": 60,
     "memory_size": 512,
@@ -175,12 +176,11 @@ class AWSLambdaExecutor(AWSExecutor):
 
         # AWSExecutor parameters
         required_attrs = {
-            "credentials_file": credentials_file
-            or get_config("executors.awslambda.credentials_file"),
-            "profile": profile or get_config("executors.awslambda.profile"),
-            "region": region or get_config("executors.awslambda.region"),
-            "s3_bucket_name": s3_bucket_name or get_config("executors.awslambda.s3_bucket_name"),
-            "execution_role": execution_role or get_config("executors.awslambda.execution_role"),
+            "credentials_file": credentials_file,
+            "profile": profile,
+            "region": region,
+            "s3_bucket_name": s3_bucket_name,
+            "execution_role": execution_role,
         }
 
         super().__init__(**required_attrs)
@@ -229,7 +229,7 @@ class AWSLambdaExecutor(AWSExecutor):
                 raise
         app_log.debug(f"Function {func_filename} uploaded to S3 bucket {self.s3_bucket_name}")
 
-    def _is_lambda_active(self, function_name: str):
+    async def _is_lambda_active(self, function_name: str) -> bool:
         """Check if the lambda function is active of not
 
         Args:
@@ -250,11 +250,11 @@ class AWSLambdaExecutor(AWSExecutor):
                 if lambda_state["Configuration"]["State"] == "Active":
                     is_active = True
                 else:
-                    time.sleep(0.1)
+                    asyncio.sleep(0.5)
                     continue
         return is_active
 
-    def _create_lambda(self, function_name: str, deployment_archive_name: str) -> Dict:
+    async def _create_lambda(self, function_name: str, deployment_archive_name: str) -> Dict:
         """Create the AWS Lambda function
 
         Args:
@@ -296,7 +296,8 @@ class AWSLambdaExecutor(AWSExecutor):
                 raise
 
         # Check if lambda is active
-        return "Active" if self._is_lambda_active(function_name) else None
+        is_active = await self._is_lambda_active(function_name)
+        return "Active" if is_active else None
 
     def submit_task(self, function_name: str) -> Dict:
         """
@@ -319,7 +320,7 @@ class AWSLambdaExecutor(AWSExecutor):
                 app_log.exception(ce)
                 raise
 
-    def get_status(self, object_key: str):
+    async def get_status(self, object_key: str):
         """
         Return status of availability of result object on remote machine
 
@@ -332,6 +333,7 @@ class AWSLambdaExecutor(AWSExecutor):
 
         with self.get_session() as session:
             while not self._key_exists:
+                asyncio.sleep(0.5)
                 s3_client = session.client("s3")
 
                 try:
@@ -347,7 +349,7 @@ class AWSLambdaExecutor(AWSExecutor):
 
         return self._key_exists
 
-    def _poll_task(self, object_key: str):
+    async def _poll_task(self, object_key: str):
         """
         Poll task until its result is ready
 
@@ -355,9 +357,9 @@ class AWSLambdaExecutor(AWSExecutor):
             object_key: Name of the object to check if present in S3
         """
 
-        while not self.get_status(object_key):
+        while not await self.get_status(object_key):
             app_log.debug(f"Polling object: {object_key}")
-            time.sleep(self.poll_freq)
+            await asyncio.sleep(self.poll_freq)
 
     def query_result(self, workdir: str, result_filename: str):
         """
@@ -452,7 +454,7 @@ class AWSLambdaExecutor(AWSExecutor):
 
         # Create the lambda function
         app_log.debug(f"Creating AWS Lambda function {lambda_function_name} ...")
-        state = self._create_lambda(lambda_function_name, deployment_archive_name)
+        state = await self._create_lambda(lambda_function_name, deployment_archive_name)
         app_log.debug(f"Lambda function: {lambda_function_name} created in state: {state}")
 
         app_log.debug(f"Finished setup for task - {dispatch_id}-{node_id} ... ")
@@ -493,7 +495,7 @@ class AWSLambdaExecutor(AWSExecutor):
         app_log.debug(f"Lambda function response: {lambda_invocation_response}")
 
         # Poll task
-        self._poll_task(result_filename)
+        await self._poll_task(result_filename)
 
         # Download the result object
         app_log.debug(f"Retrieving result for task - {dispatch_id} - {node_id}")

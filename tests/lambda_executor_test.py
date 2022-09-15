@@ -98,7 +98,7 @@ async def test_setup_workdir_create(lambda_executor, mocker):
         "covalent_awslambda_plugin.awslambda.AWSLambdaExecutor.get_session",
         return_value=MagicMock(),
     )
-    lambda_executor._create_lambda = MagicMock()
+    lambda_executor._create_lambda = AsyncMock()
     lambda_executor._cwd = "testdir"
 
     app_log_mock = mocker.patch("covalent_awslambda_plugin.awslambda.app_log")
@@ -135,7 +135,7 @@ async def test_deployment_package_builder(lambda_executor, mocker):
         return_value=MagicMock(),
     )
 
-    lambda_executor._create_lambda = MagicMock()
+    lambda_executor._create_lambda = AsyncMock()
     mocker.patch("covalent_awslambda_plugin.awslambda.app_log")
     mocker.patch("covalent_awslambda_plugin.awslambda.ZipFile")
     mocker.patch("covalent_awslambda_plugin.awslambda.os.path.exists", return_value=True)
@@ -198,7 +198,7 @@ async def test_function_pickle_dump(lambda_executor, mocker):
 
     lambda_executor._upload_task = MagicMock()
     lambda_executor.submit_task = MagicMock()
-    lambda_executor._poll_task = MagicMock()
+    lambda_executor._poll_task = AsyncMock()
     lambda_executor.get_session = MagicMock()
 
     lambda_executor.query_result = MagicMock()
@@ -266,7 +266,7 @@ async def test_setup(lambda_executor, mocker):
     target_metdata = {"dispatch_id": dispatch_id, "node_id": node_id}
 
     lambda_executor.get_session = MagicMock()
-    lambda_executor._create_lambda = MagicMock()
+    lambda_executor._create_lambda = AsyncMock()
 
     app_log_mock = mocker.patch("covalent_awslambda_plugin.awslambda.app_log")
     mocker.patch("covalent_awslambda_plugin.awslambda.os.path.exists", return_value=True)
@@ -338,7 +338,7 @@ async def test_create_lambda_invocation(lambda_executor, mocker):
     task_metadata = {"dispatch_id": dispatch_id, "node_id": node_id}
 
     lambda_executor.get_session = MagicMock()
-    lambda_executor._create_lambda = MagicMock()
+    lambda_executor._create_lambda = AsyncMock()
     mocker.patch("covalent_awslambda_plugin.awslambda.os.path.exists", return_value=True)
     mocker.patch(
         "covalent_awslambda_plugin.awslambda.DeploymentPackageBuilder.__enter__", return_value=None
@@ -359,12 +359,13 @@ async def test_create_lambda_invocation(lambda_executor, mocker):
     )
 
 
-def test_create_lambda_iam_get_role(lambda_executor, mocker):
+@pytest.mark.asyncio
+async def test_create_lambda_iam_get_role(lambda_executor, mocker):
     session_mock = mocker.patch(
         "covalent_awslambda_plugin.awslambda.AWSLambdaExecutor.get_session",
         return_value=MagicMock(),
     )
-    lambda_executor._is_lambda_active = MagicMock(return_value=True)
+    lambda_executor._is_lambda_active = AsyncMock(return_value=True)
     dispatch_id = "abcd"
     node_id = 0
 
@@ -374,7 +375,7 @@ def test_create_lambda_iam_get_role(lambda_executor, mocker):
     mocker.patch("covalent_awslambda_plugin.awslambda.app_log")
     mocker.patch("covalent_awslambda_plugin.awslambda.open")
 
-    lambda_executor._create_lambda(lambda_function_name, archive_name)
+    await lambda_executor._create_lambda(lambda_function_name, archive_name)
 
     session_mock.return_value.__enter__.assert_called()
     session_mock.return_value.__enter__.return_value.client.assert_has_calls([call("iam")])
@@ -383,7 +384,8 @@ def test_create_lambda_iam_get_role(lambda_executor, mocker):
     )
 
 
-def test_create_lambda_iam_get_role_exception(lambda_executor, mocker):
+@pytest.mark.asyncio
+async def test_create_lambda_iam_get_role_exception(lambda_executor, mocker):
     session_mock = mocker.patch(
         "covalent_awslambda_plugin.awslambda.AWSLambdaExecutor.get_session",
         return_value=MagicMock(),
@@ -392,7 +394,7 @@ def test_create_lambda_iam_get_role_exception(lambda_executor, mocker):
     node_id = 0
     lambda_function_name = f"lambda-{dispatch_id}-{node_id}"
     archive_name = f"archive-{dispatch_id}-{node_id}.zip"
-    lambda_executor._is_lambda_active = MagicMock(return_value=True)
+    lambda_executor._is_lambda_active = AsyncMock(return_value=True)
 
     client_error_mock = botocore.exceptions.ClientError(MagicMock(), MagicMock())
     session_mock.return_value.__enter__.return_value.client.return_value.get_role.return_value = {
@@ -405,18 +407,19 @@ def test_create_lambda_iam_get_role_exception(lambda_executor, mocker):
     app_log_mock = mocker.patch("covalent_awslambda_plugin.awslambda.app_log")
 
     with pytest.raises(botocore.exceptions.ClientError):
-        lambda_executor._create_lambda(lambda_function_name, archive_name)
+        await lambda_executor._create_lambda(lambda_function_name, archive_name)
         app_log_mock.exception.assert_called_with(client_error_mock)
 
     session_mock.return_value.__enter__.return_value.client.return_value.get_role.assert_called()
 
 
-def test_create_lambda_create_function(lambda_executor, mocker):
+@pytest.mark.asyncio
+async def test_create_lambda_create_function(lambda_executor, mocker):
     session_mock = mocker.patch(
         "covalent_awslambda_plugin.awslambda.AWSLambdaExecutor.get_session",
         return_value=MagicMock(),
     )
-    lambda_executor._is_lambda_active = MagicMock(return_value=True)
+    lambda_executor._is_lambda_active = AsyncMock(return_value=True)
     dispatch_id = "abcd"
     node_id = 0
 
@@ -425,18 +428,19 @@ def test_create_lambda_create_function(lambda_executor, mocker):
 
     mocker.patch("covalent_awslambda_plugin.awslambda.app_log")
 
-    lambda_executor._create_lambda(lambda_function_name, archive_name)
+    await lambda_executor._create_lambda(lambda_function_name, archive_name)
 
     session_mock.return_value.__enter__.return_value.client.assert_has_calls([call("lambda")])
     session_mock.return_value.__enter__.return_value.client.return_value.create_function.assert_called()
 
 
-def test_create_lambda_create_function_exception(lambda_executor, mocker):
+@pytest.mark.asyncio
+async def test_create_lambda_create_function_exception(lambda_executor, mocker):
     session_mock = mocker.patch(
         "covalent_awslambda_plugin.awslambda.AWSLambdaExecutor.get_session",
         return_value=MagicMock(),
     )
-    lambda_executor._is_lambda_active = MagicMock(return_value=True)
+    lambda_executor._is_lambda_active = AsyncMock(return_value=True)
     dispatch_id = "abcd"
     node_id = 0
 
@@ -451,11 +455,12 @@ def test_create_lambda_create_function_exception(lambda_executor, mocker):
     )
 
     with pytest.raises(botocore.exceptions.ClientError):
-        lambda_executor._create_lambda(lambda_function_name, archive_name)
+        await lambda_executor._create_lambda(lambda_function_name, archive_name)
         app_log_mock.exception.assert_called_with(client_error_mock)
 
 
-def test_is_lambda_active(lambda_executor, mocker):
+@pytest.mark.asyncio
+async def test_is_lambda_active(lambda_executor, mocker):
     session_mock = mocker.patch(
         "covalent_awslambda_plugin.awslambda.AWSLambdaExecutor.get_session",
         return_value=MagicMock(),
@@ -470,7 +475,7 @@ def test_is_lambda_active(lambda_executor, mocker):
     }
     mocker.patch("covalent_awslambda_plugin.awslambda.app_log")
 
-    lambda_executor._is_lambda_active(lambda_function_name)
+    await lambda_executor._is_lambda_active(lambda_function_name)
 
     session_mock.return_value.__enter__.return_value.client.return_value.get_function.assert_called_with(
         FunctionName=lambda_function_name
@@ -515,7 +520,8 @@ def test_submit_task_exception(lambda_executor, mocker):
         app_log_mock.exception.assert_called_with(client_error_mock)
 
 
-def test_get_status(lambda_executor, mocker):
+@pytest.mark.asyncio
+async def test_get_status(lambda_executor, mocker):
     session_mock = mocker.patch(
         "covalent_awslambda_plugin.awslambda.AWSLambdaExecutor.get_session",
         return_value=MagicMock(),
@@ -530,14 +536,15 @@ def test_get_status(lambda_executor, mocker):
     s3_client_list_objects_mock.return_value = {"Contents": [{"Key": result_filename}]}
     mocker.patch("covalent_awslambda_plugin.awslambda.app_log")
 
-    key_exists = lambda_executor.get_status(result_filename)
+    key_exists = await lambda_executor.get_status(result_filename)
 
     session_client_mock.assert_called_with("s3")
     s3_client_list_objects_mock.assert_called_with(Bucket=lambda_executor.s3_bucket_name)
     assert key_exists
 
 
-def test_get_status_else_path(lambda_executor, mocker):
+@pytest.mark.asyncio
+async def test_get_status_else_path(lambda_executor, mocker):
     session_mock = mocker.patch(
         "covalent_awslambda_plugin.awslambda.AWSLambdaExecutor.get_session",
         return_value=MagicMock(),
@@ -551,7 +558,7 @@ def test_get_status_else_path(lambda_executor, mocker):
     )
     s3_client_list_objects_mock.return_value = {"Contents": [{"Key": "not_test_file"}]}
 
-    return_value = lambda_executor.get_status(result_filename)
+    return_value = await lambda_executor.get_status(result_filename)
 
     session_client_mock.assert_called_with("s3")
     s3_client_list_objects_mock.assert_called_with(Bucket=lambda_executor.s3_bucket_name)
