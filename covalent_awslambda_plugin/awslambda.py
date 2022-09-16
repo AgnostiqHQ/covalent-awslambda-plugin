@@ -32,11 +32,12 @@ from zipfile import ZipFile
 
 import boto3
 import botocore.exceptions
-import cloudpickle as pickle
 from boto3.session import Session
-from covalent._shared_files import logger
 from covalent._shared_files.config import get_config
 from covalent_aws_plugins import AWSExecutor
+
+import cloudpickle as pickle
+from covalent._shared_files import logger
 
 from .scripts import PYTHON_EXEC_SCRIPT
 
@@ -249,7 +250,7 @@ class AWSLambdaExecutor(AWSExecutor):
                 if lambda_state["Configuration"]["State"] == "Active":
                     is_active = True
                 else:
-                    asyncio.sleep(0.5)
+                    await asyncio.sleep(0.5)
                     continue
         return is_active
 
@@ -332,7 +333,7 @@ class AWSLambdaExecutor(AWSExecutor):
 
         with self.get_session() as session:
             while not self._key_exists:
-                asyncio.sleep(0.5)
+                await asyncio.sleep(0.5)
                 s3_client = session.client("s3")
 
                 try:
