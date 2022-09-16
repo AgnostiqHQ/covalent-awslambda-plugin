@@ -333,15 +333,17 @@ class AWSLambdaExecutor(AWSExecutor):
 
         with self.get_session() as session:
             while not self._key_exists:
-                await asyncio.sleep(0.5)
                 s3_client = session.client("s3")
-
                 try:
                     current_keys = [
                         item["Key"]
                         for item in s3_client.list_objects(Bucket=self.s3_bucket_name)["Contents"]
                     ]
                     self._key_exists = object_key in current_keys
+
+                    if not self._key_exists:
+                        await asyncio.sleep(0.5)
+
                     return self._key_exists
                 except botocore.exceptions.ClientError as ce:
                     app_log.exception(ce)
