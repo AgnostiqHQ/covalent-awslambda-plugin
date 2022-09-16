@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+### Fixed
+
+- Added missing await to asyncio.sleep statements
+
 ### Updated
 
 - Added asyncio.sleep to unblock main thread when polling
