@@ -144,11 +144,12 @@ async def test_deployment_package_builder(lambda_executor, mocker):
 
     await lambda_executor.setup(task_metadata)
 
-    deployment_package_builder_mock.return_value.__enter__.assert_called_once()
-    deployment_package_builder_mock.return_value.__exit__.assert_called_once()
+    deployment_package_builder_mock.return_value.__aenter__.assert_awaited_once()
+    deployment_package_builder_mock.return_value.__aexit__.assert_awaited_once()
 
 
-def test_deployment_package_builder_base_setup(mocker):
+@pytest.mark.asyncio
+async def test_deployment_package_builder_base_setup(mocker):
     workdir = "testdir"
     archive_name = "test_archive"
     s3_bucket_name = "test_bucket"
@@ -164,31 +165,32 @@ def test_deployment_package_builder_base_setup(mocker):
     )
 
     pkg_bldr = DeploymentPackageBuilder(workdir, archive_name, s3_bucket_name)
-    with DeploymentPackageBuilder(workdir, archive_name, s3_bucket_name) as bldr:
+    async with DeploymentPackageBuilder(workdir, archive_name, s3_bucket_name) as bldr:
         pass
 
     os_path_exists_mock.assert_called_once_with(pkg_bldr.target_dir)
     shutil_rmtree_mock.assert_called_once_with(pkg_bldr.target_dir)
     os_mkdir_mock.assert_called_once_with(pkg_bldr.target_dir)
-    assert install_mock.call_count == 2
+    assert install_mock.await_count == 2
     zipfile_mock.assert_called_once_with(pkg_bldr.deployment_archive, mode="w")
 
 
-def test_deployment_package_builder_install_method(mocker):
+@pytest.mark.asyncio
+async def test_deployment_package_builder_install_method(mocker):
     workdir = "testdir"
     archive_name = "test_archive"
     s3_bucket_name = "test_bucket"
 
-    subprocess_mock = mocker.patch("covalent_awslambda_plugin.awslambda.subprocess.run")
+    subprocess_mock = mocker.patch("covalent_awslambda_plugin.awslambda.AWSExecutor.run_async_subprocess")
     mocker.patch("covalent_awslambda_plugin.awslambda.ZipFile")
     mocker.patch("covalent_awslambda_plugin.awslambda.os.path.exists", return_value=True)
     mocker.patch("covalent_awslambda_plugin.awslambda.shutil.rmtree")
     mocker.patch("covalent_awslambda_plugin.awslambda.os.mkdir")
 
-    with DeploymentPackageBuilder(workdir, archive_name, s3_bucket_name) as bldr:
+    async with DeploymentPackageBuilder(workdir, archive_name, s3_bucket_name) as bldr:
         pass
 
-    assert subprocess_mock.call_count == 2
+    assert subprocess_mock.await_count == 2
 
 
 @pytest.mark.asyncio
@@ -271,10 +273,10 @@ async def test_setup(lambda_executor, mocker):
     app_log_mock = mocker.patch("covalent_awslambda_plugin.awslambda.app_log")
     mocker.patch("covalent_awslambda_plugin.awslambda.os.path.exists", return_value=True)
     mocker.patch(
-        "covalent_awslambda_plugin.awslambda.DeploymentPackageBuilder.__enter__", return_value=None
+        "covalent_awslambda_plugin.awslambda.DeploymentPackageBuilder.__aenter__", return_value=None
     )
     mocker.patch(
-        "covalent_awslambda_plugin.awslambda.DeploymentPackageBuilder.__exit__", return_value=None
+        "covalent_awslambda_plugin.awslambda.DeploymentPackageBuilder.__aexit__", return_value=None
     )
     mocker.patch(
         "covalent_awslambda_plugin.awslambda.DeploymentPackageBuilder.install", return_value=None
@@ -303,10 +305,10 @@ async def test_setup_exception(lambda_executor, mocker):
 
     mocker.patch("covalent_awslambda_plugin.awslambda.os.path.exists", return_value=True)
     mocker.patch(
-        "covalent_awslambda_plugin.awslambda.DeploymentPackageBuilder.__enter__", return_value=None
+        "covalent_awslambda_plugin.awslambda.DeploymentPackageBuilder.__aenter__", return_value=None
     )
     mocker.patch(
-        "covalent_awslambda_plugin.awslambda.DeploymentPackageBuilder.__exit__", return_value=None
+        "covalent_awslambda_plugin.awslambda.DeploymentPackageBuilder.__aexit__", return_value=None
     )
     mocker.patch(
         "covalent_awslambda_plugin.awslambda.DeploymentPackageBuilder.install", return_value=None
@@ -341,10 +343,10 @@ async def test_create_lambda_invocation(lambda_executor, mocker):
     lambda_executor._create_lambda = AsyncMock()
     mocker.patch("covalent_awslambda_plugin.awslambda.os.path.exists", return_value=True)
     mocker.patch(
-        "covalent_awslambda_plugin.awslambda.DeploymentPackageBuilder.__enter__", return_value=None
+        "covalent_awslambda_plugin.awslambda.DeploymentPackageBuilder.__aenter__", return_value=None
     )
     mocker.patch(
-        "covalent_awslambda_plugin.awslambda.DeploymentPackageBuilder.__exit__", return_value=None
+        "covalent_awslambda_plugin.awslambda.DeploymentPackageBuilder.__aexit__", return_value=None
     )
     mocker.patch(
         "covalent_awslambda_plugin.awslambda.DeploymentPackageBuilder.install", return_value=None
@@ -518,6 +520,32 @@ def test_submit_task_exception(lambda_executor, mocker):
     with pytest.raises(botocore.exceptions.ClientError):
         lambda_executor.submit_task(lambda_function_name)
         app_log_mock.exception.assert_called_with(client_error_mock)
+
+
+@pytest.mark.asyncio
+async def test_run_error_handling(lambda_executor, mocker):
+    open_mock = mocker.patch("covalent_awslambda_plugin.awslambda.open")
+    pickle_load_mock = mocker.patch("covalent_awslambda_plugin.awslambda.pickle.load")
+    upload_mock = mocker.patch("covalent_awslambda_plugin.awslambda.AWSLambdaExecutor._upload_task")
+
+    function_response = {"StatusCode": 200, "FunctionError": "Unhandled"}
+
+    submit_mock = mocker.patch("covalent_awslambda_plugin.awslambda.AWSLambdaExecutor.submit_task", 
+                               return_value=function_response)
+
+    poll_mock = mocker.patch("covalent_awslambda_plugin.awslambda.AWSLambdaExecutor._poll_task")
+    query_mock = mocker.patch("covalent_awslambda_plugin.awslambda.AWSLambdaExecutor.query_result")
+    function = None
+    args = []
+    kwargs = {}
+    dispatch_id = "asdf"
+    node_id = 0
+    task_metadata = {"dispatch_id": dispatch_id, "node_id": node_id}
+
+    with pytest.raises(RuntimeError) as ex:
+        await lambda_executor.run(function, args, kwargs, task_metadata)
+        poll_mock.assert_not_awaited()
+        query_mock.assert_not_awaited()
 
 
 @pytest.mark.asyncio

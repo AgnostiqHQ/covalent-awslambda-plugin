@@ -81,56 +81,36 @@ class DeploymentPackageBuilder:
         self.target_dir = os.path.join(self.directory, "targets")
         self.deployment_archive = os.path.join(self.directory, self.archive_name)
 
-    def install(self, pkg_name: str, pre: bool = False):
+    async def install(self, pkg_name: str):
         """Install the necessary Python packages into the specified target directory
 
         Args:
             pkg_name: Name of the Python package to be installed
-            pre: Boolean flag representing whether to install a pre-release version of the package
 
         Returns:
             None
         """
-        if pre:
-            return subprocess.run(
-                [
-                    sys.executable,
-                    "-m",
-                    "pip",
-                    "install",
-                    "--target",
-                    self.target_dir,
-                    pkg_name,
-                    "--pre",
-                ],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.STDOUT,
-            )
+        cmd = " ".join([
+            sys.executable,
+            "-m",
+            "pip",
+            "install",
+            "--target",
+            self.target_dir,
+            "--upgrade",
+            pkg_name,
+        ])
+        return await AWSExecutor.run_async_subprocess(cmd)
 
-        return subprocess.run(
-            [
-                sys.executable,
-                "-m",
-                "pip",
-                "install",
-                "--target",
-                self.target_dir,
-                "--upgrade",
-                pkg_name,
-            ],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.STDOUT,
-        )
-
-    def __enter__(self):
+    async def __aenter__(self):
         """Create the zip archive"""
         if os.path.exists(self.target_dir):
             shutil.rmtree(self.target_dir)
             os.mkdir(self.target_dir)
 
         # Install the required python dependencies
-        self.install("boto3")
-        self.install("covalent==0.177.0")
+        await self.install("boto3")
+        await self.install("covalent==0.177.0")
 
         # Create zip archive with dependencies
         with ZipFile(self.deployment_archive, mode="w") as archive:
@@ -141,7 +121,7 @@ class DeploymentPackageBuilder:
 
         return self.deployment_archive
 
-    def __exit__(self, exc_type, exc_value, exc_tb):
+    async def __aexit__(self, exc_type, exc_value, exc_tb):
         """None"""
         pass
 
@@ -419,7 +399,7 @@ class AWSLambdaExecutor(AWSExecutor):
         app_log.debug(
             f"Creating the Lambda deployment archive at {os.path.join(workdir, deployment_archive_name)} ..."
         )
-        with DeploymentPackageBuilder(
+        async with DeploymentPackageBuilder(
             workdir, deployment_archive_name, self.s3_bucket_name
         ) as deployment_archive:
             exec_script = PYTHON_EXEC_SCRIPT.format(
