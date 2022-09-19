@@ -184,8 +184,12 @@ def test_deployment_package_builder_write_archive(mocker):
     zip_mock = MagicMock()
 
     zipfile_mock = mocker.patch("covalent_awslambda_plugin.awslambda.ZipFile")
-    glob_mock = mocker.patch("pathlib.PosixPath.rglob", return_value=[pathlib.PosixPath("covalent")])
-    rel_mock = mocker.patch("pathlib.PosixPath.relative_to", return_value=[pathlib.PosixPath("covalent")])
+    glob_mock = mocker.patch(
+        "pathlib.PosixPath.rglob", return_value=[pathlib.PosixPath("covalent")]
+    )
+    rel_mock = mocker.patch(
+        "pathlib.PosixPath.relative_to", return_value=[pathlib.PosixPath("covalent")]
+    )
     pkg_bldr = DeploymentPackageBuilder(workdir, archive_name, s3_bucket_name)
     pkg_bldr.write_deployment_archive()
     zipfile_mock.return_value.__enter__.return_value.write.assert_called_once()
@@ -199,7 +203,10 @@ async def test_deployment_package_builder_install_method(mocker):
 
     proc_mock = MagicMock()
     proc_mock.returncode = 0
-    subprocess_mock = mocker.patch("covalent_awslambda_plugin.awslambda.AWSExecutor.run_async_subprocess", return_value=(proc_mock, "", ""))
+    subprocess_mock = mocker.patch(
+        "covalent_awslambda_plugin.awslambda.AWSExecutor.run_async_subprocess",
+        return_value=(proc_mock, "", ""),
+    )
     mocker.patch("covalent_awslambda_plugin.awslambda.ZipFile")
     mocker.patch("covalent_awslambda_plugin.awslambda.os.path.exists", return_value=True)
     mocker.patch("covalent_awslambda_plugin.awslambda.shutil.rmtree")
@@ -220,13 +227,15 @@ async def test_deployment_package_builder_install_exceptions(mocker):
     proc_mock = MagicMock()
     proc_mock.returncode = 1
 
-    subprocess_mock = mocker.patch("covalent_awslambda_plugin.awslambda.AWSExecutor.run_async_subprocess", return_value=(proc_mock, "", "error"))
+    subprocess_mock = mocker.patch(
+        "covalent_awslambda_plugin.awslambda.AWSExecutor.run_async_subprocess",
+        return_value=(proc_mock, "", "error"),
+    )
 
     with pytest.raises(RuntimeError) as ex:
         async with DeploymentPackageBuilder(workdir, archive_name, s3_bucket_name) as bldr:
             pass
         app_log_mock.error.assert_called_with("error")
-
 
 
 @pytest.mark.asyncio
@@ -307,7 +316,8 @@ async def test_setup(lambda_executor, mocker):
     app_log_mock = mocker.patch("covalent_awslambda_plugin.awslambda.app_log")
     mocker.patch("covalent_awslambda_plugin.awslambda.os.path.exists", return_value=True)
     mocker.patch(
-        "covalent_awslambda_plugin.awslambda.DeploymentPackageBuilder.__aenter__", return_value=None
+        "covalent_awslambda_plugin.awslambda.DeploymentPackageBuilder.__aenter__",
+        return_value=None,
     )
     mocker.patch(
         "covalent_awslambda_plugin.awslambda.DeploymentPackageBuilder.__aexit__", return_value=None
@@ -339,7 +349,8 @@ async def test_setup_exception(lambda_executor, mocker):
 
     mocker.patch("covalent_awslambda_plugin.awslambda.os.path.exists", return_value=True)
     mocker.patch(
-        "covalent_awslambda_plugin.awslambda.DeploymentPackageBuilder.__aenter__", return_value=None
+        "covalent_awslambda_plugin.awslambda.DeploymentPackageBuilder.__aenter__",
+        return_value=None,
     )
     mocker.patch(
         "covalent_awslambda_plugin.awslambda.DeploymentPackageBuilder.__aexit__", return_value=None
@@ -377,7 +388,8 @@ async def test_create_lambda_invocation(lambda_executor, mocker):
     lambda_executor._create_lambda = AsyncMock()
     mocker.patch("covalent_awslambda_plugin.awslambda.os.path.exists", return_value=True)
     mocker.patch(
-        "covalent_awslambda_plugin.awslambda.DeploymentPackageBuilder.__aenter__", return_value=None
+        "covalent_awslambda_plugin.awslambda.DeploymentPackageBuilder.__aenter__",
+        return_value=None,
     )
     mocker.patch(
         "covalent_awslambda_plugin.awslambda.DeploymentPackageBuilder.__aexit__", return_value=None
@@ -562,12 +574,16 @@ async def test_submit_task_exception(lambda_executor, mocker):
 async def test_normal_run(lambda_executor, mocker):
     open_mock = mocker.patch("covalent_awslambda_plugin.awslambda.open")
     pickle_load_mock = mocker.patch("covalent_awslambda_plugin.awslambda.pickle.load")
-    upload_mock = mocker.patch("covalent_awslambda_plugin.awslambda.AWSLambdaExecutor._upload_task")
+    upload_mock = mocker.patch(
+        "covalent_awslambda_plugin.awslambda.AWSLambdaExecutor._upload_task"
+    )
 
     function_response = {"StatusCode": 200}
 
-    submit_mock = mocker.patch("covalent_awslambda_plugin.awslambda.AWSLambdaExecutor.submit_task",
-                               return_value=function_response)
+    submit_mock = mocker.patch(
+        "covalent_awslambda_plugin.awslambda.AWSLambdaExecutor.submit_task",
+        return_value=function_response,
+    )
 
     poll_mock = mocker.patch("covalent_awslambda_plugin.awslambda.AWSLambdaExecutor._poll_task")
     query_mock = mocker.patch("covalent_awslambda_plugin.awslambda.AWSLambdaExecutor.query_result")
@@ -586,12 +602,16 @@ async def test_normal_run(lambda_executor, mocker):
 async def test_run_error_handling(lambda_executor, mocker):
     open_mock = mocker.patch("covalent_awslambda_plugin.awslambda.open")
     pickle_load_mock = mocker.patch("covalent_awslambda_plugin.awslambda.pickle.load")
-    upload_mock = mocker.patch("covalent_awslambda_plugin.awslambda.AWSLambdaExecutor._upload_task")
+    upload_mock = mocker.patch(
+        "covalent_awslambda_plugin.awslambda.AWSLambdaExecutor._upload_task"
+    )
     payload_mock = MagicMock()
     function_response = {"StatusCode": 200, "FunctionError": "Unhandled", "Payload": payload_mock}
 
-    submit_mock = mocker.patch("covalent_awslambda_plugin.awslambda.AWSLambdaExecutor.submit_task",
-                               return_value=function_response)
+    submit_mock = mocker.patch(
+        "covalent_awslambda_plugin.awslambda.AWSLambdaExecutor.submit_task",
+        return_value=function_response,
+    )
 
     poll_mock = mocker.patch("covalent_awslambda_plugin.awslambda.AWSLambdaExecutor._poll_task")
     query_mock = mocker.patch("covalent_awslambda_plugin.awslambda.AWSLambdaExecutor.query_result")

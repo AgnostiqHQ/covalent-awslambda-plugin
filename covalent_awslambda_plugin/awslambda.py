@@ -90,16 +90,18 @@ class DeploymentPackageBuilder:
         Returns:
             None
         """
-        cmd = " ".join([
-            sys.executable,
-            "-m",
-            "pip",
-            "install",
-            "--target",
-            self.target_dir,
-            "--upgrade",
-            pkg_name,
-        ])
+        cmd = " ".join(
+            [
+                sys.executable,
+                "-m",
+                "pip",
+                "install",
+                "--target",
+                self.target_dir,
+                "--upgrade",
+                pkg_name,
+            ]
+        )
         proc, stdout, stderr = await AWSExecutor.run_async_subprocess(cmd)
         if proc.returncode != 0:
             app_log.error(stderr)
@@ -502,7 +504,9 @@ class AWSLambdaExecutor(AWSExecutor):
         app_log.debug(f"Lambda function response: {lambda_invocation_response}")
         if "FunctionError" in lambda_invocation_response:
             error = lambda_invocation_response["Payload"].read().decode("utf-8")
-            raise RuntimeError(f"Exception occurred while running task {dispatch_id}:{node_id}: {error}")
+            raise RuntimeError(
+                f"Exception occurred while running task {dispatch_id}:{node_id}: {error}"
+            )
 
         # Poll task
         await self._poll_task(result_filename)
