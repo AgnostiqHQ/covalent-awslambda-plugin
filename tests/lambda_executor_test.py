@@ -566,7 +566,7 @@ async def test_normal_run(lambda_executor, mocker):
 
     function_response = {"StatusCode": 200}
 
-    submit_mock = mocker.patch("covalent_awslambda_plugin.awslambda.AWSLambdaExecutor.submit_task", 
+    submit_mock = mocker.patch("covalent_awslambda_plugin.awslambda.AWSLambdaExecutor.submit_task",
                                return_value=function_response)
 
     poll_mock = mocker.patch("covalent_awslambda_plugin.awslambda.AWSLambdaExecutor._poll_task")
@@ -590,7 +590,7 @@ async def test_run_error_handling(lambda_executor, mocker):
     payload_mock = MagicMock()
     function_response = {"StatusCode": 200, "FunctionError": "Unhandled", "Payload": payload_mock}
 
-    submit_mock = mocker.patch("covalent_awslambda_plugin.awslambda.AWSLambdaExecutor.submit_task", 
+    submit_mock = mocker.patch("covalent_awslambda_plugin.awslambda.AWSLambdaExecutor.submit_task",
                                return_value=function_response)
 
     poll_mock = mocker.patch("covalent_awslambda_plugin.awslambda.AWSLambdaExecutor._poll_task")
