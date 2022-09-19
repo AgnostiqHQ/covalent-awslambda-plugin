@@ -175,6 +175,22 @@ async def test_deployment_package_builder_base_setup(mocker):
     zipfile_mock.assert_called_once_with(pkg_bldr.deployment_archive, mode="w")
 
 
+def test_deployment_package_builder_write_archive(mocker):
+    import pathlib
+
+    workdir = "testdir"
+    archive_name = "test_archive"
+    s3_bucket_name = "test_bucket"
+    zip_mock = MagicMock()
+
+    zipfile_mock = mocker.patch("covalent_awslambda_plugin.awslambda.ZipFile")
+    glob_mock = mocker.patch("pathlib.PosixPath.rglob", return_value=[pathlib.PosixPath("covalent")])
+    rel_mock = mocker.patch("pathlib.PosixPath.relative_to", return_value=[pathlib.PosixPath("covalent")])
+    pkg_bldr = DeploymentPackageBuilder(workdir, archive_name, s3_bucket_name)
+    pkg_bldr.write_deployment_archive()
+    zipfile_mock.return_value.__enter__.return_value.write.assert_called_once()
+
+
 @pytest.mark.asyncio
 async def test_deployment_package_builder_install_method(mocker):
     workdir = "testdir"

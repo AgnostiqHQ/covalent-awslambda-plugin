@@ -102,6 +102,14 @@ class DeploymentPackageBuilder:
         ])
         return await AWSExecutor.run_async_subprocess(cmd)
 
+    def write_deployment_archive(self):
+        # Create zip archive with dependencies
+        with ZipFile(self.deployment_archive, mode="w") as archive:
+            for file_path in pathlib.Path(self.target_dir).rglob("*"):
+                archive.write(
+                    file_path, arcname=file_path.relative_to(pathlib.Path(self.target_dir))
+                )
+
     async def __aenter__(self):
         """Create the zip archive"""
         if os.path.exists(self.target_dir):
@@ -112,12 +120,8 @@ class DeploymentPackageBuilder:
         await self.install("boto3")
         await self.install("covalent==0.177.0")
 
-        # Create zip archive with dependencies
-        with ZipFile(self.deployment_archive, mode="w") as archive:
-            for file_path in pathlib.Path(self.target_dir).rglob("*"):
-                archive.write(
-                    file_path, arcname=file_path.relative_to(pathlib.Path(self.target_dir))
-                )
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, self.write_deployment_archive)
 
         return self.deployment_archive
 
