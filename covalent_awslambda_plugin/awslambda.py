@@ -494,6 +494,8 @@ class AWSLambdaExecutor(AWSExecutor):
         # Invoke the created lambda
         lambda_invocation_response = self.submit_task(lambda_function_name)
         app_log.debug(f"Lambda function response: {lambda_invocation_response}")
+        if "FunctionError" in lambda_invocation_response:
+            raise RuntimeError("Exception occurred while running task {dispatch_id}:{node_id}")
 
         # Poll task
         await self._poll_task(result_filename)
