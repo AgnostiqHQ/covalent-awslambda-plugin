@@ -100,7 +100,10 @@ class DeploymentPackageBuilder:
             "--upgrade",
             pkg_name,
         ])
-        return await AWSExecutor.run_async_subprocess(cmd)
+        proc, stdout, stderr = await AWSExecutor.run_async_subprocess(cmd)
+        if proc.returncode != 0:
+            app_log.error(stderr)
+            raise RuntimeError(f"Unable to install package {pkg_name}")
 
     def write_deployment_archive(self):
         # Create zip archive with dependencies
@@ -498,14 +501,15 @@ class AWSLambdaExecutor(AWSExecutor):
         lambda_invocation_response = await self.submit_task(lambda_function_name)
         app_log.debug(f"Lambda function response: {lambda_invocation_response}")
         if "FunctionError" in lambda_invocation_response:
-            raise RuntimeError("Exception occurred while running task {dispatch_id}:{node_id}")
+            error = lambda_invocation_response["Payload"].read().decode("utf-8")
+            raise RuntimeError(f"Exception occurred while running task {dispatch_id}:{node_id}: {error}")
 
         # Poll task
         await self._poll_task(result_filename)
 
         # Download the result object
         app_log.debug(f"Retrieving result for task - {dispatch_id} - {node_id}")
-        result_object = self.query_result(workdir, result_filename)
+        result_object = await self.query_result(workdir, result_filename)
         app_log.debug(f"Result retrived for task - {dispatch_id} - {node_id}")
 
         return result_object
