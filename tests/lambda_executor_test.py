@@ -231,7 +231,8 @@ async def test_function_pickle_dump(lambda_executor, mocker):
     pickle_dump_mock.assert_called_once()
 
 
-def test_upload_fileobj_sync(lambda_executor, mocker):
+@pytest.mark.asyncio
+async def test_upload_fileobj(lambda_executor, mocker):
 
     lambda_executor.get_session = MagicMock()
 
@@ -240,7 +241,7 @@ def test_upload_fileobj_sync(lambda_executor, mocker):
     file_open_mock = mocker.patch("covalent_awslambda_plugin.awslambda.open")
     mocker.patch("covalent_awslambda_plugin.awslambda.pickle.dump")
 
-    lambda_executor._upload_task_sync("test_workdir", "test_func_filename")
+    await lambda_executor._upload_task("test_workdir", "test_func_filename")
 
     file_open_mock.assert_called_once()
 
@@ -254,13 +255,7 @@ def test_upload_fileobj_sync(lambda_executor, mocker):
 
 
 @pytest.mark.asyncio
-async def test_upload_fileobj(lambda_executor, mocker):
-    upload_mock = mocker.patch("covalent_awslambda_plugin.awslambda.AWSLambdaExecutor._upload_task_sync")
-    await lambda_executor._upload_task("test_workdir", "test_func_filename")
-    upload_mock.assert_called_once()
-
-
-def test_upload_fileobj_sync_exception(lambda_executor, mocker):
+async def test_upload_fileobj_sync_exception(lambda_executor, mocker):
     def f(x):
         return x
 
@@ -276,7 +271,7 @@ def test_upload_fileobj_sync_exception(lambda_executor, mocker):
     app_log_mock = mocker.patch("covalent_awslambda_plugin.awslambda.app_log")
 
     with pytest.raises(botocore.exceptions.ClientError):
-        lambda_executor._upload_task_sync("test_workdir", "test_func_filename")
+        await lambda_executor._upload_task("test_workdir", "test_func_filename")
         app_log_mock.exception.assert_called_with(client_error_mock)
 
 

@@ -215,6 +215,7 @@ class AWSLambdaExecutor(AWSExecutor):
     async def _upload_task(self, workdir: str, func_filename: str):
         loop = asyncio.get_running_loop()
         fut = loop.run_in_executor(None, self._upload_task_sync, workdir, func_filename)
+        await fut
 
     async def _is_lambda_active(self, function_name: str) -> bool:
         """Check if the lambda function is active of not
