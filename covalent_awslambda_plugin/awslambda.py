@@ -189,7 +189,7 @@ class AWSLambdaExecutor(AWSExecutor):
         """
         yield boto3.Session(**self.boto_session_options())
 
-    def _upload_task(self, workdir: str, func_filename: str):
+    def _upload_task_sync(self, workdir: str, func_filename: str):
         """
         Upload the function file to remote
 
@@ -211,6 +211,10 @@ class AWSLambdaExecutor(AWSExecutor):
                 app_log.exception(ce)
                 raise
         app_log.debug(f"Function {func_filename} uploaded to S3 bucket {self.s3_bucket_name}")
+
+    async def _upload_task(self, workdir: str, func_filename: str):
+        loop = asyncio.get_running_loop()
+        fut = loop.run_in_executor(None, self._upload_task_sync, workdir, func_filename)
 
     async def _is_lambda_active(self, function_name: str) -> bool:
         """Check if the lambda function is active of not
@@ -282,16 +286,8 @@ class AWSLambdaExecutor(AWSExecutor):
         is_active = await self._is_lambda_active(function_name)
         return "Active" if is_active else None
 
-    def submit_task(self, function_name: str) -> Dict:
-        """
-        Submit the task by invoking the AWS Lambda function
-
-        Args:
-            function_name: AWS Lambda function name
-
-        Returns:
-            response: AWS boto3 client invoke lambda response
-        """
+    def submit_task_sync(self, function_name: str) -> Dict:
+        """The actual (blocking) submit_task function"""
 
         app_log.debug(f"Invoking AWS Lambda function {function_name}")
 
@@ -302,6 +298,39 @@ class AWSLambdaExecutor(AWSExecutor):
             except botocore.exceptions.ClientError as ce:
                 app_log.exception(ce)
                 raise
+
+    async def submit_task(self, function_name: str) -> Dict:
+        """
+        Submit the task by invoking the AWS Lambda function
+
+        Args:
+            function_name: AWS Lambda function name
+
+        Returns:
+            response: AWS boto3 client invoke lambda response
+        """
+        loop = asyncio.get_running_loop()
+        fut = loop.run_in_executor(None, self.submit_task_sync, function_name)
+        return await fut
+
+    def get_status_sync(self, object_key: str):
+        with self.get_session() as session:
+            while not self._key_exists:
+                s3_client = session.client("s3")
+                try:
+                    current_keys = [
+                        item["Key"]
+                        for item in s3_client.list_objects(Bucket=self.s3_bucket_name)["Contents"]
+                    ]
+                    self._key_exists = object_key in current_keys
+
+                    if not self._key_exists:
+                        time.sleep(0.5)
+
+                    return self._key_exists
+                except botocore.exceptions.ClientError as ce:
+                    app_log.exception(ce)
+                    raise
 
     async def get_status(self, object_key: str):
         """
@@ -314,25 +343,9 @@ class AWSLambdaExecutor(AWSExecutor):
             bool indicating whether the object exists or not on S3 bucket
         """
 
-        with self.get_session() as session:
-            while not self._key_exists:
-                s3_client = session.client("s3")
-                try:
-                    current_keys = [
-                        item["Key"]
-                        for item in s3_client.list_objects(Bucket=self.s3_bucket_name)["Contents"]
-                    ]
-                    self._key_exists = object_key in current_keys
-
-                    if not self._key_exists:
-                        await asyncio.sleep(0.5)
-
-                    return self._key_exists
-                except botocore.exceptions.ClientError as ce:
-                    app_log.exception(ce)
-                    raise
-
-        return self._key_exists
+        loop = asyncio.get_running_loop()
+        fut = loop.run_in_executor(None, self.get_status_sync, object_key)
+        return await fut
 
     async def _poll_task(self, object_key: str):
         """
@@ -346,7 +359,7 @@ class AWSLambdaExecutor(AWSExecutor):
             app_log.debug(f"Polling object: {object_key}")
             await asyncio.sleep(self.poll_freq)
 
-    def query_result(self, workdir: str, result_filename: str):
+    def query_result_sync(self, workdir: str, result_filename: str):
         """
         Fetch the result object from the S3 bucket
 
@@ -375,6 +388,11 @@ class AWSLambdaExecutor(AWSExecutor):
             result_object = pickle.load(f)
 
         return result_object
+
+    async def query_result(self, workdir: str, result_filename: str):
+        loop = asyncio.get_running_loop()
+        fut = loop.run_in_executor(None, self.query_result_sync, workdir, result_filename)
+        return await fut
 
     async def setup(self, task_metadata: Dict):
         """AWS Lambda specific setup tasks
@@ -473,10 +491,10 @@ class AWSLambdaExecutor(AWSExecutor):
             pickle.dump((function, args, kwargs), f)
 
         # Upload pickled file to s3 bucket created
-        self._upload_task(workdir, func_filename)
+        await self._upload_task(workdir, func_filename)
 
         # Invoke the created lambda
-        lambda_invocation_response = self.submit_task(lambda_function_name)
+        lambda_invocation_response = await self.submit_task(lambda_function_name)
         app_log.debug(f"Lambda function response: {lambda_invocation_response}")
         if "FunctionError" in lambda_invocation_response:
             raise RuntimeError("Exception occurred while running task {dispatch_id}:{node_id}")
