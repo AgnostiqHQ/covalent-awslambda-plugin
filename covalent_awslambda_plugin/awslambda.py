@@ -81,33 +81,16 @@ class DeploymentPackageBuilder:
         self.target_dir = os.path.join(self.directory, "targets")
         self.deployment_archive = os.path.join(self.directory, self.archive_name)
 
-    def install(self, pkg_name: str, pre: bool = False):
+    async def install(self, pkg_name: str):
         """Install the necessary Python packages into the specified target directory
 
         Args:
             pkg_name: Name of the Python package to be installed
-            pre: Boolean flag representing whether to install a pre-release version of the package
 
         Returns:
             None
         """
-        if pre:
-            return subprocess.run(
-                [
-                    sys.executable,
-                    "-m",
-                    "pip",
-                    "install",
-                    "--target",
-                    self.target_dir,
-                    pkg_name,
-                    "--pre",
-                ],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.STDOUT,
-            )
-
-        return subprocess.run(
+        cmd = " ".join(
             [
                 sys.executable,
                 "-m",
@@ -117,21 +100,14 @@ class DeploymentPackageBuilder:
                 self.target_dir,
                 "--upgrade",
                 pkg_name,
-            ],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.STDOUT,
+            ]
         )
+        proc, stdout, stderr = await AWSExecutor.run_async_subprocess(cmd)
+        if proc.returncode != 0:
+            app_log.error(stderr)
+            raise RuntimeError(f"Unable to install package {pkg_name}")
 
-    def __enter__(self):
-        """Create the zip archive"""
-        if os.path.exists(self.target_dir):
-            shutil.rmtree(self.target_dir)
-            os.mkdir(self.target_dir)
-
-        # Install the required python dependencies
-        self.install("boto3")
-        self.install("covalent==0.177.0")
-
+    def write_deployment_archive(self):
         # Create zip archive with dependencies
         with ZipFile(self.deployment_archive, mode="w") as archive:
             for file_path in pathlib.Path(self.target_dir).rglob("*"):
@@ -139,9 +115,22 @@ class DeploymentPackageBuilder:
                     file_path, arcname=file_path.relative_to(pathlib.Path(self.target_dir))
                 )
 
+    async def __aenter__(self):
+        """Create the zip archive"""
+        if os.path.exists(self.target_dir):
+            shutil.rmtree(self.target_dir)
+            os.mkdir(self.target_dir)
+
+        # Install the required python dependencies
+        await self.install("boto3")
+        await self.install("covalent==0.177.0")
+
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, self.write_deployment_archive)
+
         return self.deployment_archive
 
-    def __exit__(self, exc_type, exc_value, exc_tb):
+    async def __aexit__(self, exc_type, exc_value, exc_tb):
         """None"""
         pass
 
@@ -205,7 +194,7 @@ class AWSLambdaExecutor(AWSExecutor):
         """
         yield boto3.Session(**self.boto_session_options())
 
-    def _upload_task(self, workdir: str, func_filename: str):
+    def _upload_task_sync(self, workdir: str, func_filename: str):
         """
         Upload the function file to remote
 
@@ -227,6 +216,11 @@ class AWSLambdaExecutor(AWSExecutor):
                 app_log.exception(ce)
                 raise
         app_log.debug(f"Function {func_filename} uploaded to S3 bucket {self.s3_bucket_name}")
+
+    async def _upload_task(self, workdir: str, func_filename: str):
+        loop = asyncio.get_running_loop()
+        fut = loop.run_in_executor(None, self._upload_task_sync, workdir, func_filename)
+        await fut
 
     async def _is_lambda_active(self, function_name: str) -> bool:
         """Check if the lambda function is active of not
@@ -298,16 +292,8 @@ class AWSLambdaExecutor(AWSExecutor):
         is_active = await self._is_lambda_active(function_name)
         return "Active" if is_active else None
 
-    def submit_task(self, function_name: str) -> Dict:
-        """
-        Submit the task by invoking the AWS Lambda function
-
-        Args:
-            function_name: AWS Lambda function name
-
-        Returns:
-            response: AWS boto3 client invoke lambda response
-        """
+    def submit_task_sync(self, function_name: str) -> Dict:
+        """The actual (blocking) submit_task function"""
 
         app_log.debug(f"Invoking AWS Lambda function {function_name}")
 
@@ -318,6 +304,39 @@ class AWSLambdaExecutor(AWSExecutor):
             except botocore.exceptions.ClientError as ce:
                 app_log.exception(ce)
                 raise
+
+    async def submit_task(self, function_name: str) -> Dict:
+        """
+        Submit the task by invoking the AWS Lambda function
+
+        Args:
+            function_name: AWS Lambda function name
+
+        Returns:
+            response: AWS boto3 client invoke lambda response
+        """
+        loop = asyncio.get_running_loop()
+        fut = loop.run_in_executor(None, self.submit_task_sync, function_name)
+        return await fut
+
+    def get_status_sync(self, object_key: str):
+        with self.get_session() as session:
+            while not self._key_exists:
+                s3_client = session.client("s3")
+                try:
+                    current_keys = [
+                        item["Key"]
+                        for item in s3_client.list_objects(Bucket=self.s3_bucket_name)["Contents"]
+                    ]
+                    self._key_exists = object_key in current_keys
+
+                    if not self._key_exists:
+                        time.sleep(0.5)
+
+                    return self._key_exists
+                except botocore.exceptions.ClientError as ce:
+                    app_log.exception(ce)
+                    raise
 
     async def get_status(self, object_key: str):
         """
@@ -330,25 +349,9 @@ class AWSLambdaExecutor(AWSExecutor):
             bool indicating whether the object exists or not on S3 bucket
         """
 
-        with self.get_session() as session:
-            while not self._key_exists:
-                s3_client = session.client("s3")
-                try:
-                    current_keys = [
-                        item["Key"]
-                        for item in s3_client.list_objects(Bucket=self.s3_bucket_name)["Contents"]
-                    ]
-                    self._key_exists = object_key in current_keys
-
-                    if not self._key_exists:
-                        await asyncio.sleep(0.5)
-
-                    return self._key_exists
-                except botocore.exceptions.ClientError as ce:
-                    app_log.exception(ce)
-                    raise
-
-        return self._key_exists
+        loop = asyncio.get_running_loop()
+        fut = loop.run_in_executor(None, self.get_status_sync, object_key)
+        return await fut
 
     async def _poll_task(self, object_key: str):
         """
@@ -362,7 +365,7 @@ class AWSLambdaExecutor(AWSExecutor):
             app_log.debug(f"Polling object: {object_key}")
             await asyncio.sleep(self.poll_freq)
 
-    def query_result(self, workdir: str, result_filename: str):
+    def query_result_sync(self, workdir: str, result_filename: str):
         """
         Fetch the result object from the S3 bucket
 
@@ -392,6 +395,11 @@ class AWSLambdaExecutor(AWSExecutor):
 
         return result_object
 
+    async def query_result(self, workdir: str, result_filename: str):
+        loop = asyncio.get_running_loop()
+        fut = loop.run_in_executor(None, self.query_result_sync, workdir, result_filename)
+        return await fut
+
     async def setup(self, task_metadata: Dict):
         """AWS Lambda specific setup tasks
 
@@ -419,7 +427,7 @@ class AWSLambdaExecutor(AWSExecutor):
         app_log.debug(
             f"Creating the Lambda deployment archive at {os.path.join(workdir, deployment_archive_name)} ..."
         )
-        with DeploymentPackageBuilder(
+        async with DeploymentPackageBuilder(
             workdir, deployment_archive_name, self.s3_bucket_name
         ) as deployment_archive:
             exec_script = PYTHON_EXEC_SCRIPT.format(
@@ -489,18 +497,23 @@ class AWSLambdaExecutor(AWSExecutor):
             pickle.dump((function, args, kwargs), f)
 
         # Upload pickled file to s3 bucket created
-        self._upload_task(workdir, func_filename)
+        await self._upload_task(workdir, func_filename)
 
         # Invoke the created lambda
-        lambda_invocation_response = self.submit_task(lambda_function_name)
+        lambda_invocation_response = await self.submit_task(lambda_function_name)
         app_log.debug(f"Lambda function response: {lambda_invocation_response}")
+        if "FunctionError" in lambda_invocation_response:
+            error = lambda_invocation_response["Payload"].read().decode("utf-8")
+            raise RuntimeError(
+                f"Exception occurred while running task {dispatch_id}:{node_id}: {error}"
+            )
 
         # Poll task
         await self._poll_task(result_filename)
 
         # Download the result object
         app_log.debug(f"Retrieving result for task - {dispatch_id} - {node_id}")
-        result_object = self.query_result(workdir, result_filename)
+        result_object = await self.query_result(workdir, result_filename)
         app_log.debug(f"Result retrived for task - {dispatch_id} - {node_id}")
 
         return result_object

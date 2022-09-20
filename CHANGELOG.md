@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+### Fixed
+
+- Function errors no longer cause the executor to poll indefinitely
+- Exceptions in Lambda handler are returned
+- Moved blocking steps off the main thread
+
 ## [0.8.1] - 2022-09-16
 
 ### Fixed
