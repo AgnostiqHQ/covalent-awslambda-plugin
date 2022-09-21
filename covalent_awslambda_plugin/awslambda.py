@@ -27,7 +27,7 @@ import sys
 import tempfile
 import time
 from contextlib import contextmanager
-from typing import Callable, Dict, List
+from typing import Callable, Dict, List, Tuple
 from zipfile import ZipFile
 
 import boto3
@@ -102,7 +102,7 @@ class DeploymentPackageBuilder:
                 pkg_name,
             ]
         )
-        proc, stdout, stderr = await AWSExecutor.run_async_subprocess(cmd)
+        proc, stdout, stderr = await AWSLambdaExecutor.run_async_subprocess(cmd)
         if proc.returncode != 0:
             app_log.error(stderr)
             raise RuntimeError(f"Unable to install package {pkg_name}")
@@ -601,3 +601,24 @@ class AWSLambdaExecutor(AWSExecutor):
                 app_log.debug(f"Working directory {workdir} deleted")
 
         app_log.debug(f"Finished teardown for task - {dispatch_id} - {node_id}")
+
+    # copied from RemoteExecutor
+    @staticmethod
+    async def run_async_subprocess(cmd) -> Tuple:
+        """
+        Invokes an async subprocess to run a command.
+        """
+
+        proc = await asyncio.create_subprocess_shell(
+            cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+        )
+
+        stdout, stderr = await proc.communicate()
+
+        if stdout:
+            app_log.debug(stdout)
+
+        if stderr:
+            app_log.debug(stderr)
+
+        return proc, stdout, stderr
