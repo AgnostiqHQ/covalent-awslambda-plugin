@@ -395,6 +395,17 @@ class AWSLambdaExecutor(AWSExecutor):
 
         return result_object
 
+    def _upload_deployment_archive_sync(self, deployment_archive, deployment_archive_name):
+        with self.get_session() as session:
+            client = session.client("s3")
+            try:
+                client.upload_file(
+                    deployment_archive, self.s3_bucket_name, deployment_archive_name
+                )
+            except botocore.exceptions.ClientError as ce:
+                app_log.exception(ce)
+                raise
+
     async def query_result(self, workdir: str, result_filename: str):
         loop = asyncio.get_running_loop()
         fut = loop.run_in_executor(None, self.query_result_sync, workdir, result_filename)
@@ -449,15 +460,13 @@ class AWSLambdaExecutor(AWSExecutor):
         )
 
         # Upload archive to s3 bucket
-        with self.get_session() as session:
-            client = session.client("s3")
-            try:
-                client.upload_file(
-                    deployment_archive, self.s3_bucket_name, deployment_archive_name
-                )
-            except botocore.exceptions.ClientError as ce:
-                app_log.exception(ce)
-                raise
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(
+            None,
+            self._upload_deployment_archive_sync,
+            deployment_archive,
+            deployment_archive_name,
+        )
 
         app_log.debug(f"Lambda deployment archive: {deployment_archive_name} uploaded to S3 ... ")
 
