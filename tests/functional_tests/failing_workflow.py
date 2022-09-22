@@ -6,7 +6,7 @@ app_log = logger.app_log
 log_stack_info = logger.log_stack_info
 
 
-@ct.electron(executor="awslambda")
+@ct.electron(executor=executor)
 def failing_task(a, b):
     raise NotImplementedError("Not implemented!!!")
 
