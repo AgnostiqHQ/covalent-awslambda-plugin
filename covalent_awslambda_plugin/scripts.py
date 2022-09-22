@@ -35,6 +35,7 @@ def lambda_handler(event, context):
         s3.download_file("{s3_bucket_name}", "{func_filename}", "/tmp/{func_filename}")
     except Exception as e:
         print(e)
+        raise e
 
     with open("/tmp/{func_filename}", "rb") as f:
         function, args, kwargs = pickle.load(f)
@@ -43,6 +44,7 @@ def lambda_handler(event, context):
         result = function(*args, **kwargs)
     except Exception as e:
         print(e)
+        raise e
 
     with open("/tmp/{result_filename}", "wb") as f:
         pickle.dump(result, f)
@@ -51,4 +53,5 @@ def lambda_handler(event, context):
         s3.upload_file("/tmp/{result_filename}", "{s3_bucket_name}", "{result_filename}")
     except Exception as e:
         print(e)
+        raise e
 """
