@@ -27,7 +27,7 @@ import sys
 import tempfile
 import time
 from contextlib import contextmanager
-from typing import Callable, Dict, List
+from typing import Callable, Dict, List, Tuple
 from zipfile import ZipFile
 
 import boto3
@@ -102,7 +102,7 @@ class DeploymentPackageBuilder:
                 pkg_name,
             ]
         )
-        proc, stdout, stderr = await AWSExecutor.run_async_subprocess(cmd)
+        proc, stdout, stderr = await AWSLambdaExecutor.run_async_subprocess(cmd)
         if proc.returncode != 0:
             app_log.error(stderr)
             raise RuntimeError(f"Unable to install package {pkg_name}")
@@ -395,6 +395,17 @@ class AWSLambdaExecutor(AWSExecutor):
 
         return result_object
 
+    def _upload_deployment_archive_sync(self, deployment_archive, deployment_archive_name):
+        with self.get_session() as session:
+            client = session.client("s3")
+            try:
+                client.upload_file(
+                    deployment_archive, self.s3_bucket_name, deployment_archive_name
+                )
+            except botocore.exceptions.ClientError as ce:
+                app_log.exception(ce)
+                raise
+
     async def query_result(self, workdir: str, result_filename: str):
         loop = asyncio.get_running_loop()
         fut = loop.run_in_executor(None, self.query_result_sync, workdir, result_filename)
@@ -449,15 +460,13 @@ class AWSLambdaExecutor(AWSExecutor):
         )
 
         # Upload archive to s3 bucket
-        with self.get_session() as session:
-            client = session.client("s3")
-            try:
-                client.upload_file(
-                    deployment_archive, self.s3_bucket_name, deployment_archive_name
-                )
-            except botocore.exceptions.ClientError as ce:
-                app_log.exception(ce)
-                raise
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(
+            None,
+            self._upload_deployment_archive_sync,
+            deployment_archive,
+            deployment_archive_name,
+        )
 
         app_log.debug(f"Lambda deployment archive: {deployment_archive_name} uploaded to S3 ... ")
 
@@ -592,3 +601,24 @@ class AWSLambdaExecutor(AWSExecutor):
                 app_log.debug(f"Working directory {workdir} deleted")
 
         app_log.debug(f"Finished teardown for task - {dispatch_id} - {node_id}")
+
+    # copied from RemoteExecutor
+    @staticmethod
+    async def run_async_subprocess(cmd) -> Tuple:
+        """
+        Invokes an async subprocess to run a command.
+        """
+
+        proc = await asyncio.create_subprocess_shell(
+            cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+        )
+
+        stdout, stderr = await proc.communicate()
+
+        if stdout:
+            app_log.debug(stdout)
+
+        if stderr:
+            app_log.debug(stderr)
+
+        return proc, stdout, stderr

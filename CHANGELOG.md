@@ -9,7 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Docs
 
-- Updated docs to include more information about required/optional config values, and provide information about each cloud resource that needs to be provisione.
+- Updated docs to include more information about required/optional config values, and provide information about each cloud resource that needs to be provisioned.
+
+## [0.8.3] - 2022-09-22
+
+### Fixed
+
+- Reverted temporarily to old RemoteExecutor API
+- Moved uploading deployment archive off the main thread
 
 ## [0.8.2] - 2022-09-20
 
