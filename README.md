@@ -27,7 +27,7 @@ pip install covalent-awslambda-plugin
 ## 2. Usage Example
 
 This is an example of how a workflow can be constructed to use the AWS Lambda executor.
-In the example, we train a Support Vector Machine (SVM) and use an instance of the executor 
+In the example, we train a Support Vector Machine (SVM) and use an instance of the executor
 to execute the `train_svm` electron. Note that we also require [DepsPip](https://covalent.readthedocs.io/en/latest/concepts/concepts.html#depspip) which will be installed on the server
 that is auto-provisioned by AWS Lambda.
 
@@ -110,7 +110,7 @@ During the exeuction of the workflow, one can navigate to the UI to see the stat
 
 There are many configuration options that can be passed into the `ct.executor.AWSLambdaExecutor` class or by modifying the [covalent config file](https://covalent.readthedocs.io/en/latest/how_to/config/customization.html) under the section `[executors.awslambda]`
 
-For more information about all of the possible configuration values, visit our [read the docs (RTD) guide](https://covalent.readthedocs.io/en/latest/api/executors/awslambda.html) 
+For more information about all of the possible configuration values, visit our [read the docs (RTD) guide](https://covalent.readthedocs.io/en/latest/api/executors/awslambda.html)
 for this plugin.
 
 ## 4. Required AWS Resources
@@ -121,8 +121,8 @@ In order for workflows to leverage this executor, users must ensure that all the
 | IAM Role  | lambda_role_name | The IAM role this lambda will assume during execution of your tasks |
 | S3 Bucket | s3_bucket_name   | The name of the S3 bucket that the executor can use to store temporary files |
 
-For exact details on how the above resources can be provisioned, visit our [read the docs (RTD) guide](https://covalent.readthedocs.io/en/latest/api/executors/awslambda.html) 
-for this plugin. 
+For exact details on how the above resources can be provisioned, visit our [read the docs (RTD) guide](https://covalent.readthedocs.io/en/latest/api/executors/awslambda.html)
+for this plugin.
 
 ## Getting Started with Covalent
 
