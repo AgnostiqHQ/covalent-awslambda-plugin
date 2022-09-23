@@ -28,8 +28,7 @@ pip install covalent-awslambda-plugin
 
 This is an example of how a workflow can be constructed to use the AWS Lambda executor.
 In the example, we train a Support Vector Machine (SVM) and use an instance of the executor
-to execute the `train_svm` electron. Note that we also require [DepsPip](https://covalent.readthedocs.io/en/latest/concepts/concepts.html#depspip) which will be installed on the server
-that is auto-provisioned by AWS Lambda.
+to execute the `train_svm` electron. Note that we also require [DepsPip](https://covalent.readthedocs.io/en/latest/concepts/concepts.html#depspip) which will be required to execute the electrons.
 
 ```python
 from numpy.random import permutation
@@ -114,7 +113,7 @@ For more information about all of the possible configuration values, visit our [
 for this plugin.
 
 ## 4. Required AWS Resources
-In order for workflows to leverage this executor, users must ensure that all the necessary IAM permissions are properly setup and configured. This executor uses the [S3](https://aws.amazon.com/s3/) and [AWS Lambda](https://aws.amazon.com/lambda/) services to execute an electron, thus the required IAM role and policies must be configured correctly. Precisely, the following resources are needed for the executor to run any dispatched electrons properly.
+In order for workflows to leverage this executor, users must ensure that all the necessary IAM permissions are properly setup and configured. This executor uses the [S3](https://aws.amazon.com/s3/) and [AWS Lambda](https://aws.amazon.com/lambda/) services to execute an electron, thus the required IAM roles and policies must be configured correctly. Precisely, the following resources are needed for the executor to run any dispatched electrons properly.
 
 | Resource     | Config Name      | Description |
 | ------------ | ---------------- | ----------- |
