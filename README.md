@@ -14,7 +14,7 @@
 
 ## Covalent AWS Lambda Plugin
 
-Covalent is a Pythonic workflow tool used to execute tasks on advanced computing hardware. This executor plugin interfaces Covalent with AWS [Lambda](https://aws.amazon.com/lambda/) for dispatching computational tasks.
+Covalent is a Pythonic workflow tool used to execute tasks on advanced computing hardware. This executor plugin interfaces Covalent with [AWS Lambda](https://aws.amazon.com/lambda/) for dispatching computational tasks.
 
 ## 1. Installation
 
@@ -114,12 +114,12 @@ For more information about all of the possible configuration values, visit our [
 for this plugin.
 
 ## 4. Required AWS Resources
-In order for workflows to leverage this executor, users must ensure that all the necessary IAM permissions are properly setup and configured. This executor uses the S3 and AWS Lambda service to execute an electron, thus the IAM role and policies must be configured correctly. Precisely, the following resources are needed for the executor to run any dispatched electrons properly.
+In order for workflows to leverage this executor, users must ensure that all the necessary IAM permissions are properly setup and configured. This executor uses the [S3](https://aws.amazon.com/s3/) and [AWS Lambda](https://aws.amazon.com/lambda/) services to execute an electron, thus the required IAM role and policies must be configured correctly. Precisely, the following resources are needed for the executor to run any dispatched electrons properly.
 
-| Resource  | Config Name      | Description |
-| --------- | ---------------- | ----------- |
-| IAM Role  | lambda_role_name | The IAM role this lambda will assume during execution of your tasks |
-| S3 Bucket | s3_bucket_name   | The name of the S3 bucket that the executor can use to store temporary files |
+| Resource     | Config Name      | Description |
+| ------------ | ---------------- | ----------- |
+| IAM Role     | lambda_role_name | The IAM role this lambda will assume during execution of your tasks |
+| S3 Bucket    | s3_bucket_name   | The name of the S3 bucket that the executor can use to store temporary files |
 
 For exact details on how the above resources can be provisioned, visit our [read the docs (RTD) guide](https://covalent.readthedocs.io/en/latest/api/executors/awslambda.html)
 for this plugin.
