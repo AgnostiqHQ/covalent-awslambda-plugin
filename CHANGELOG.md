@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Updated docs to include more information about required/optional config values, and provide information about each cloud resource that needs to be provisioned.
 
+### Operations
+
+- Added license workflow
+
 ## [0.8.3] - 2022-09-22
 
 ### Fixed
