@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Added license workflow
 
+## [0.8.3] - 2022-09-22
+
+### Fixed
+
+- Reverted temporarily to old RemoteExecutor API
+- Moved uploading deployment archive off the main thread
+
 ## [0.8.2] - 2022-09-20
 
 ### Fixed

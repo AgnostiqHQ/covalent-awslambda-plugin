@@ -204,7 +204,7 @@ async def test_deployment_package_builder_install_method(mocker):
     proc_mock = MagicMock()
     proc_mock.returncode = 0
     subprocess_mock = mocker.patch(
-        "covalent_awslambda_plugin.awslambda.AWSExecutor.run_async_subprocess",
+        "covalent_awslambda_plugin.awslambda.AWSLambdaExecutor.run_async_subprocess",
         return_value=(proc_mock, "", ""),
     )
     mocker.patch("covalent_awslambda_plugin.awslambda.ZipFile")
@@ -228,7 +228,7 @@ async def test_deployment_package_builder_install_exceptions(mocker):
     proc_mock.returncode = 1
 
     subprocess_mock = mocker.patch(
-        "covalent_awslambda_plugin.awslambda.AWSExecutor.run_async_subprocess",
+        "covalent_awslambda_plugin.awslambda.AWSLambdaExecutor.run_async_subprocess",
         return_value=(proc_mock, "", "error"),
     )
 
@@ -839,3 +839,47 @@ async def test_teardown_exception(lambda_executor, mocker):
         assert exit_mock.call_count == 2
         os_path_exists_mock.assert_called_once()
         shutil_rmtree_mock.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_run_async_subprocess(lambda_executor):
+    """Test awslambda executor async subprocess call"""
+
+    test_dir, test_file, non_existent_file = "file_dir", "file.txt", "non_existent_file.txt"
+    create_file = (
+        f"rm -rf {test_dir} && mkdir {test_dir} && cd {test_dir} && touch {test_file} && echo 'hello remote "
+        f"executor' >> {test_file} "
+    )
+    read_non_existent_file = f"cat {non_existent_file}"
+
+    (
+        create_file_proc,
+        create_file_stdout,
+        create_file_stderr,
+    ) = await AWSLambdaExecutor.run_async_subprocess(create_file)
+
+    # Test that file creation works as expected
+    assert create_file_proc.returncode == 0
+    assert create_file_stdout.decode() == ""
+    assert create_file_stderr.decode() == ""
+
+    # Test that file was created and written to correctly
+    try:
+        with open(f"{test_dir}/{test_file}", "r") as test_file:
+            lines = test_file.readlines()
+            assert lines[0].strip() == "hello remote executor"
+
+    except FileNotFoundError as fe:
+        pytest.fail(f'Failed to parse {test_file} with exception "{fe}"')
+
+    # Test that reading from a non-existent file throws an error and returns a non-zero exit code
+    (
+        read_file_proc,
+        read_file_stdout,
+        read_file_stderr,
+    ) = await AWSLambdaExecutor.run_async_subprocess(read_non_existent_file)
+
+    assert read_file_proc.returncode == 1
+    assert (
+        read_file_stderr.decode().strip() == f"cat: {non_existent_file}: No such file or directory"
+    )
