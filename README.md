@@ -99,11 +99,12 @@ result = ct.get_result(dispatch_id, wait=True).result
 print(result)
 ```
 
-During the exeuction of the workflow, one can navigate to the UI to see the status of the workflow. Once completed, the above script should also output a value with the score of our model.
+During the execution of the workflow, one can navigate to the UI to see the status of the workflow. Once completed, the above script should also output a value with the score of our model.
 
 ```sh
 0.8666666666666667
 ```
+In order for the above workflow to run successfully, one has to provision the required cloud resources as mentioned in the section [Required AWS Resources](#-required-aws-resources).
 
 ## 3. Configuration
 
@@ -113,6 +114,7 @@ For more information about all of the possible configuration values, visit our [
 for this plugin.
 
 ## 4. Required AWS Resources
+
 In order for workflows to leverage this executor, users must ensure that all the necessary IAM permissions are properly setup and configured. This executor uses the [S3](https://aws.amazon.com/s3/) and [AWS Lambda](https://aws.amazon.com/lambda/) services to execute an electron, thus the required IAM roles and policies must be configured correctly. Precisely, the following resources are needed for the executor to run any dispatched electrons properly.
 
 | Resource     | Config Name      | Description |
