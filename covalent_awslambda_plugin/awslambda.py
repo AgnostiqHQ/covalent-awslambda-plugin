@@ -32,11 +32,12 @@ from zipfile import ZipFile
 
 import boto3
 import botocore.exceptions
-import cloudpickle as pickle
 from boto3.session import Session
-from covalent._shared_files import logger
 from covalent._shared_files.config import get_config
 from covalent_aws_plugins import AWSExecutor
+
+import cloudpickle as pickle
+from covalent._shared_files import logger
 
 from .scripts import PYTHON_EXEC_SCRIPT
 
@@ -123,7 +124,7 @@ class DeploymentPackageBuilder:
 
         # Install the required python dependencies
         await self.install("boto3")
-        await self.install("covalent==0.177.0")
+        await self.install("covalent==0.177.0.post1.dev0")
 
         loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, self.write_deployment_archive)
