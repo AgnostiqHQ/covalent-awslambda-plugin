@@ -477,6 +477,12 @@ class AWSLambdaExecutor(AWSExecutor):
 
         app_log.debug(f"Finished setup for task - {dispatch_id}-{node_id} ... ")
 
+    def _dump_inputs(
+        self, function: Callable, args: List, kwargs: Dict, workdir: str, func_filename: str
+    ):
+        with open(os.path.join(workdir, func_filename), "wb") as f:
+            pickle.dump((function, args, kwargs), f)
+
     async def run(self, function: Callable, args: List, kwargs: Dict, task_metadata: Dict):
         """Run the executor
 
@@ -502,8 +508,10 @@ class AWSLambdaExecutor(AWSExecutor):
         app_log.debug(f"In run for task - {dispatch_id} - {node_id} ... ")
 
         app_log.debug("Pickling function, args and kwargs..")
-        with open(os.path.join(workdir, func_filename), "wb") as f:
-            pickle.dump((function, args, kwargs), f)
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(
+            None, self._dump_inputs, function, args, kwargs, workdir, func_filename
+        )
 
         # Upload pickled file to s3 bucket created
         await self._upload_task(workdir, func_filename)
@@ -533,15 +541,7 @@ class AWSLambdaExecutor(AWSExecutor):
         """
         raise NotImplementedError("Cancellation is currently not supported")
 
-    async def teardown(self, task_metadata: Dict):
-        """Cleanup temporary files and the Lambda function
-
-        Args:
-            task_metadata: Dictionary containing the task dispatch_id and node_id
-
-        Returns:
-            None
-        """
+    def teardown_sync(self, task_metadata: Dict):
         dispatch_id = task_metadata["dispatch_id"]
         node_id = task_metadata["node_id"]
         lambda_function_name = LAMBDA_FUNCTION_NAME.format(
@@ -601,6 +601,18 @@ class AWSLambdaExecutor(AWSExecutor):
                 app_log.debug(f"Working directory {workdir} deleted")
 
         app_log.debug(f"Finished teardown for task - {dispatch_id} - {node_id}")
+
+    async def teardown(self, task_metadata: Dict):
+        """Cleanup temporary files and the Lambda function
+
+        Args:
+            task_metadata: Dictionary containing the task dispatch_id and node_id
+
+        Returns:
+            None
+        """
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, self.teardown_sync, task_metadata)
 
     # copied from RemoteExecutor
     @staticmethod
