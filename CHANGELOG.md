@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+
+### Changed
+
+- Revert: updated pinned covalent version for lambda zip file, and pinned to covalent-aws-plugins pre-release
+
 ## [0.10.0] - 2022-09-30
 
 ### Changed
