@@ -14,161 +14,120 @@
 
 ## Covalent AWS Lambda Plugin
 
-Covalent is a Pythonic workflow tool used to execute tasks on advanced computing hardware. This executor plugin interfaces Covalent with AWS [Lambda](https://aws.amazon.com/lambda/) for dispatching compute.
+Covalent is a Pythonic workflow tool used to execute tasks on advanced computing hardware. This executor plugin interfaces Covalent with [AWS Lambda](https://aws.amazon.com/lambda/) for dispatching computational tasks.
 
+## 1. Installation
 
-To use this plugin with Covalent, install it with `pip`:
+To use this plugin with Covalent, install it using `pip`:
 
 ```sh
 pip install covalent-awslambda-plugin
 ```
 
-In order for workflows to leverage this executor, users must ensure that all the necessary IAM permissions are properly setup and configured. This executor uses the S3 and AWS Lambda service to execute an electron, thus the IAM roles/policies must be configured correctly. Precisely, the following IAM permissions are needed for the executor to run any dispatched electrons properly
+## 2. Usage Example
 
-```json
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Effect": "Allow",
-            "Action": [
-                "s3:*",
-                "s3-object-lambda:*"
-            ],
-            "Resource": [
-                "arn:aws:s3:::<bucket-name>",
-                "arn:aws:s3:::<bucket-name>/*"
-            ]
-        },
-        {
-            "Effect": "Allow",
-            "Action": [
-                "cloudformation:DescribeStacks",
-                "cloudformation:ListStackResources",
-                "cloudwatch:ListMetrics",
-                "cloudwatch:GetMetricData",
-                "ec2:DescribeSecurityGroups",
-                "ec2:DescribeSubnets",
-                "ec2:DescribeVpcs",
-                "kms:ListAliases",
-                "iam:GetPolicy",
-                "iam:GetPolicyVersion",
-                "iam:GetRole",
-                "iam:GetRolePolicy",
-                "iam:ListAttachedRolePolicies",
-                "iam:ListRolePolicies",
-                "iam:ListRoles",
-                "lambda:*",
-                "logs:DescribeLogGroups",
-                "states:DescribeStateMachine",
-                "states:ListStateMachines",
-                "tag:GetResources",
-                "xray:GetTraceSummaries",
-                "xray:BatchGetTraces"
-            ],
-            "Resource": "*"
-        },
-        {
-            "Effect": "Allow",
-            "Action": "iam:PassRole",
-            "Resource": "*",
-            "Condition": {
-                "StringEquals": {
-                    "iam:PassedToService": "lambda.amazonaws.com"
-                }
-            }
-        },
-        {
-            "Effect": "Allow",
-            "Action": [
-                "logs:DescribeLogStreams",
-                "logs:GetLogEvents",
-                "logs:FilterLogEvents"
-            ],
-            "Resource": "arn:aws:logs:*:*:log-group:/aws/lambda/*"
-        }
-    ]
-}
+This is an example of how a workflow can be constructed to use the AWS Lambda executor.
+In the example, we train a Support Vector Machine (SVM) and use an instance of the executor
+to execute the `train_svm` electron. Note that we also require [DepsPip](https://covalent.readthedocs.io/en/latest/concepts/concepts.html#depspip) which will be required to execute the electrons.
+
+```python
+from numpy.random import permutation
+from sklearn import svm, datasets
+import covalent as ct
+
+deps_pip = ct.DepsPip(
+        packages=["numpy==1.23.2", "scikit-learn==1.1.2"]
+)
+
+executor = ct.executor.AWSLambdaExecutor(
+        region="us-east-1",
+        lambda_role_name="CovalentLambdaExecutionRole",
+        s3_bucket_name="covalent-lambda-job-resources",
+        timeout=60,
+        memory_size=512
+)
+
+# Use executor plugin to train our SVM model.
+@ct.electron(
+    executor=executor,
+    deps_pip=deps_pip
+)
+def train_svm(data, C, gamma):
+    X, y = data
+    clf = svm.SVC(C=C, gamma=gamma)
+    clf.fit(X[90:], y[90:])
+    return clf
+
+@ct.electron
+def load_data():
+    iris = datasets.load_iris()
+    perm = permutation(iris.target.size)
+    iris.data = iris.data[perm]
+    iris.target = iris.target[perm]
+    return iris.data, iris.target
+
+@ct.electron
+def score_svm(data, clf):
+    X_test, y_test = data
+    return clf.score(
+        X_test[:90], y_test[:90]
+    )
+
+@ct.lattice
+def run_experiment(C=1.0, gamma=0.7):
+    data = load_data()
+    clf = train_svm(
+        data=data,
+        C=C,
+        gamma=gamma
+    )
+    score = score_svm(
+        data=data,
+        clf=clf
+    )
+    return score
+
+# Dispatch the workflow.
+dispatch_id = ct.dispatch(run_experiment)(
+        C=1.0,
+        gamma=0.7
+)
+
+# Wait for our result and get result value
+result = ct.get_result(dispatch_id, wait=True).result
+
+print(result)
 ```
 
-where `<bucket-name>` is the name of the S3 bucket configured to the Lambda executor to upload and download objects from. The default bucket name is set to `covalent-lambda-job-resources` and it must be present prior to running the executor. The S3 bucket can either be created using the `awscli` or with the AWS web console.
-To create a S3 bucket using the AWS CLI, the following can be used
+During the execution of the workflow, one can navigate to the UI to see the status of the workflow. Once completed, the above script should also output a value with the score of our model.
 
 ```sh
-pip install awscli
-aws configure
-aws s3api create-bucket --bucket `my-s3-bucket-for-covalent` --region `us-east-1`
+0.8666666666666667
 ```
+In order for the above workflow to run successfully, one has to provision the required cloud resources as mentioned in the section [Required AWS Resources](#-required-aws-resources).
 
-Secondly, the lambda function created by this executor on AWS also needs an IAM role with suitable permisisons to execute. By default, this executor assumes there exists a IAM role `CovalentLambdaExecutionRole` with the `AWSLambdaExecute` execute policy attached to it. The policy document is summarized here for convenience
+## 3. Configuration
 
-```json
-{
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Effect": "Allow",
-            "Action": [
-                "logs:*"
-            ],
-            "Resource": "arn:aws:logs:*:*:*"
-        },
-        {
-            "Effect": "Allow",
-            "Action": [
-                "s3:GetObject",
-                "s3:PutObject"
-            ],
-            "Resource": "arn:aws:s3:::*"
-        }
-    ]
-}
-```
+There are many configuration options that can be passed into the `ct.executor.AWSLambdaExecutor` class or by modifying the [covalent config file](https://covalent.readthedocs.io/en/latest/how_to/config/customization.html) under the section `[executors.awslambda]`
 
+For more information about all of the possible configuration values, visit our [read the docs (RTD) guide](https://covalent.readthedocs.io/en/latest/api/executors/awslambda.html)
+for this plugin.
 
-Users can optionally configure this executor by specifying its properties in their Covalent configuration file. Following is a section showing the default configuration values for this executor
+## 4. Required AWS Resources
 
-```
-[executors.awslambda]
-credentials = "/home/user/.aws/credentials"
-profile = "default"
-region = "us-east-1"
-lambda_role_name = "CovalentLambdaExecutionRole"
-s3_bucket_name = "covalent-lambda-job-resources"
-cache_dir = "/home/user/.cache/covalent"
-poll_freq = 5
-timeout = 60
-memory_size = 512
-cleanup = true
-```
+In order for workflows to leverage this executor, users must ensure that all the necessary IAM permissions are properly setup and configured. This executor uses the [S3](https://aws.amazon.com/s3/) and [AWS Lambda](https://aws.amazon.com/lambda/) services to execute an electron, thus the required IAM roles and policies must be configured correctly. Precisely, the following resources are needed for the executor to run any dispatched electrons properly.
 
-To this executor in their workflows, users can either create an instance of the `AWSLambdaExecutor` class with their custom configuration values or simply use the defaults. The following code snippets illustrate how this can be done in a workflow
+| Resource     | Config Name      | Description |
+| ------------ | ---------------- | ----------- |
+| IAM Role     | lambda_role_name | The IAM role this lambda will assume during execution of your tasks |
+| S3 Bucket    | s3_bucket_name   | The name of the S3 bucket that the executor can use to store temporary files |
 
-```python
-# Custom configuration
-from covalent.executor import AWSLambdaExecutor
-lambda_executor = AWSLambdaExecutor(credentials="my_custom_credentials",
-                    profile="custom_profile",
-                    region="us-east-1",
-                    lambda_role_name="custom_role_name",
-                    s3_bucket_name="custom_s3_bucket_name",
-                    cache_dir="custom_cache_dir_location",
-                    poll_freq="custom_integer_value",
-                    timeout="custom_timeout_value (max 900s)",
-                    memory_size="custom_memory_size (max 512 M)",
-                    cleanup="True or False")
+For exact details on how the above resources can be provisioned, visit our [read the docs (RTD) guide](https://covalent.readthedocs.io/en/latest/api/executors/awslambda.html)
+for this plugin.
 
-@ct.electron(executor=lambda_executor)
-def my_task(...):
-    ...
-```
+## Getting Started with Covalent
 
-If the values specified in the configuration file are to be used, the executor can be used as follows
-```python
-@ct.electron(executor="awslambda"):
-def my_task(...):
-    ...
-```
+For more information on how to get started with Covalent, check out the project [homepage](https://github.com/AgnostiqHQ/covalent) and the official [documentation](https://covalent.readthedocs.io/en/latest/).
 
 ## Release Notes
 
