@@ -123,7 +123,7 @@ class DeploymentPackageBuilder:
 
         # Install the required python dependencies
         await self.install("boto3")
-        await self.install("covalent==0.177.0")
+        await self.install("covalent==0.177.0.post1.dev0")
 
         loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, self.write_deployment_archive)

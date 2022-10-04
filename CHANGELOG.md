@@ -11,6 +11,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Updated docs to include more information about required/optional config values, and provide information about each cloud resource that needs to be provisioned.
 
+## [0.11.0] - 2022-10-03
+
+
+### Changed
+
+- Revert: updated pinned covalent version for lambda zip file, and pinned to covalent-aws-plugins pre-release
+
+## [0.10.0] - 2022-09-30
+
+### Changed
+
+- Updated pinned covalent version for lambda zip file, and pinned to covalent-aws-plugins pre-release
+
+## [0.9.0] - 2022-09-30
+
+### Added
+
+-  Logic to specify that only the base covalent-aws-plugins package is to be installed.
+
 ### Operations
 
 - Added license workflow
