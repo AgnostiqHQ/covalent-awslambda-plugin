@@ -7,9 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+
 ### Fixed
 
 - Falling back to config file defaults when using executor via instantiation of executor class
+
+### Docs
+
+- Updated docs to include more information about required/optional config values, and provide information about each cloud resource that needs to be provisioned.
+
 
 ## [0.11.0] - 2022-10-03
 
