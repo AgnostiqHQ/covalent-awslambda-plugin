@@ -151,11 +151,11 @@ class AWSLambdaExecutor(AWSExecutor):
 
     def __init__(
         self,
-        credentials_file: str,
-        profile: str,
-        region: str,
         s3_bucket_name: str,
         execution_role: str,
+        credentials_file: str = None,
+        profile: str = None,
+        region: str = None,
         poll_freq: int = None,
         timeout: int = None,
         memory_size: int = None,
@@ -164,11 +164,12 @@ class AWSLambdaExecutor(AWSExecutor):
 
         # AWSExecutor parameters
         required_attrs = {
-            "credentials_file": credentials_file,
-            "profile": profile,
-            "region": region,
-            "s3_bucket_name": s3_bucket_name,
-            "execution_role": execution_role,
+            "credentials_file": credentials_file
+            or get_config("executors.awslambda.credentials_file"),
+            "profile": profile or get_config("executors.awslambda.profile"),
+            "region": region or get_config("executors.awslambda.region"),
+            "s3_bucket_name": s3_bucket_name or get_config("executors.awslambda.s3_bucket_name"),
+            "execution_role": execution_role or get_config("executors.awslambda.execution_role"),
         }
 
         super().__init__(**required_attrs)
