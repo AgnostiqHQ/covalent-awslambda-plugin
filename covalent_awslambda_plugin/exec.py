@@ -30,5 +30,5 @@ def handler(event, context):
     result = function(*args, **kwargs)
     with open(local_result_filename, "wb") as f:
         pickle.dump(result, f)
-    
+
     s3.upload_file(local_result_filename, s3_bucket, result_filename)
