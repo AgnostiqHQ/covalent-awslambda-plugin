@@ -1,9 +1,11 @@
 import os
+
 import boto3
 import cloudpickle as pickle
 
+
 def handler(event, context):
-    os.environ['HOME'] = "/tmp"
+    os.environ["HOME"] = "/tmp"
     os.chdir("/tmp")
 
     s3_bucket = os.environ["S3_BUCKET_NAME"]
