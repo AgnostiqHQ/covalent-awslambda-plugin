@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Adding `Dockerfile` to build the base Lambda executor image
+- Update lambda `exec.py` to extract task specific metadata from the `event` input
 
 ## [0.11.2] - 2022-10-06
 
