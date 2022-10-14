@@ -8,16 +8,19 @@ def handler(event, context):
     os.environ["HOME"] = "/tmp"
     os.chdir("/tmp")
 
-    s3_bucket = event["S3_BUCKET_NAME"]
-    if not s3_bucket:
+    try:
+        s3_bucket = event["S3_BUCKET_NAME"]
+    except KeyError:
         raise KeyError("Variable S3_BUCKET_NAME was not found")
 
-    func_filename = event["COVALENT_TASK_FUNC_FILENAME"]
-    if not func_filename:
+    try:
+        func_filename = event["COVALENT_TASK_FUNC_FILENAME"]
+    except KeyError:
         raise KeyError("Variable COVALENT_TASK_FUNC_FILENAME was not found")
 
-    result_filename = event["RESULT_FILENAME"]
-    if not result_filename:
+    try:
+        result_filename = event["RESULT_FILENAME"]
+    except KeyError:
         raise KeyError("Variable RESULT_FILENAME was not found")
 
     local_func_filename = os.path.join("/tmp", func_filename)
