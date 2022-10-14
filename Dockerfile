@@ -39,6 +39,6 @@ RUN apt-get update && \
 COPY covalent_awslambda_plugin/exec.py ${LAMBDA_TASK_ROOT}
 
 WORKDIR ${LAMBDA_TASK_ROOT}
- 
+
 ENTRYPOINT [ "python", "-m", "awslambdaric" ]
 CMD ["exec.handler"]
