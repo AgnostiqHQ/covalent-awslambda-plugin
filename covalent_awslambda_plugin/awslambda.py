@@ -19,6 +19,7 @@
 # Relief from the License may be granted by purchasing a commercial license.
 
 import asyncio
+import json
 import os
 import tempfile
 import time
@@ -107,8 +108,6 @@ class AWSLambdaExecutor(AWSExecutor):
         self.timeout = timeout or get_config("executors.awslambda.timeout")
         self.memory_size = memory_size or get_config("executors.awslambda.memory_size")
         self.cleanup = cleanup
-
-        self._cwd = tempfile.mkdtemp()
         self._key_exists = False
 
     @contextmanager
@@ -163,11 +162,10 @@ class AWSLambdaExecutor(AWSExecutor):
             try:
                 return client.invoke(
                     FunctionName=function_name,
-                    payload={
-                        "S3_BUCKET_NAME": self.s3_bucket_name,
+                    Payload=json.dumps({"S3_BUCKET_NAME": self.s3_bucket_name,
                         "COVALENT_TASK_FUNC_FILENAME": func_filename,
                         "RESULT_FILENAME": result_filename,
-                    },
+                    }),
                 )
             except botocore.exceptions.ClientError as ce:
                 app_log.exception(ce)
@@ -286,7 +284,7 @@ class AWSLambdaExecutor(AWSExecutor):
         """
         dispatch_id = task_metadata["dispatch_id"]
         node_id = task_metadata["node_id"]
-        workdir = os.path.join(self._cwd, dispatch_id)
+        workdir = self.cache_dir
 
         func_filename = FUNC_FILENAME.format(dispatch_id=dispatch_id, node_id=node_id)
         result_filename = RESULT_FILENAME.format(dispatch_id=dispatch_id, node_id=node_id)
