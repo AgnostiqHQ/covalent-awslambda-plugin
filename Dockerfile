@@ -18,7 +18,8 @@
 #
 # Relief from the License may be granted by purchasing a commercial license.
 
-FROM public.ecr.aws/covalent/covalent:latest
+ARG COVALENT_BASE_IMAGE
+FROM ${COVALENT_BASE_IMAGE}
 
 # AWS lambda specific env variables
 ARG LAMBDA_TASK_ROOT=/var/task
@@ -33,11 +34,11 @@ RUN apt-get update && \
   unzip \
   libcurl4-openssl-dev && \
   rm -rf /var/lib/apt/lists/* && \
-  pip install --target "${LAMBDA_TASK_ROOT}" boto3 awslambdaric
+  pip install --target "${LAMBDA_TASK_ROOT}" boto3 cloudpickle awslambdaric
 
 COPY covalent_awslambda_plugin/exec.py ${LAMBDA_TASK_ROOT}
 
 WORKDIR ${LAMBDA_TASK_ROOT}
-
-ENTRYPOINT [ "/usr/local/bin/python", "-m", "awslambdaric" ]
-CMD [ "exec.handler" ]
+ 
+ENTRYPOINT [ "python", "-m", "awslambdaric" ]
+CMD ["exec.handler"]
