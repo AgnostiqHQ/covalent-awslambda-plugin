@@ -46,6 +46,7 @@ log_stack_info = logger.log_stack_info
 executor_plugin_name = "AWSLambdaExecutor"
 
 _EXECUTOR_PLUGIN_DEFAULTS = {
+    "function_name": "covalent-lambda-executor-function",
     "credentials_file": os.environ.get("AWS_SHARED_CREDENTIALS_FILE")
     or os.path.join(os.environ.get("HOME"), ".aws/credentials"),
     "profile": os.environ.get("AWS_PROFILE") or "default",
@@ -139,6 +140,7 @@ class AWSLambdaExecutor(AWSExecutor):
     """AWS Lambda executor plugin
 
     Args:
+        function_name: Name of an existing lambda function to use during execution (default: `covalent-awsambda-executor`)
         credentials_file: Path to AWS credentials file (default: `~/.aws/credentials`)
         profile: AWS profile (default: `default`)
         region: AWS region (default: `us-east-1`)
@@ -151,6 +153,7 @@ class AWSLambdaExecutor(AWSExecutor):
 
     def __init__(
         self,
+        function_name: str,
         s3_bucket_name: str,
         execution_role: str,
         credentials_file: str = None,
@@ -175,6 +178,7 @@ class AWSLambdaExecutor(AWSExecutor):
         super().__init__(**required_attrs)
 
         # Lambda executor parameters
+        self.function_name = function_name or get_config("executors.awslambda.function_name") or "covalent-awslambda-executor"
         self.poll_freq = poll_freq or get_config("executors.awslambda.poll_freq")
         self.timeout = timeout or get_config("executors.awslambda.timeout")
         self.memory_size = memory_size or get_config("executors.awslambda.memory_size")
