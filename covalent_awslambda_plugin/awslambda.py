@@ -162,10 +162,13 @@ class AWSLambdaExecutor(AWSExecutor):
             try:
                 return client.invoke(
                     FunctionName=function_name,
-                    Payload=json.dumps({"S3_BUCKET_NAME": self.s3_bucket_name,
-                        "COVALENT_TASK_FUNC_FILENAME": func_filename,
-                        "RESULT_FILENAME": result_filename,
-                    }),
+                    Payload=json.dumps(
+                        {
+                            "S3_BUCKET_NAME": self.s3_bucket_name,
+                            "COVALENT_TASK_FUNC_FILENAME": func_filename,
+                            "RESULT_FILENAME": result_filename,
+                        }
+                    ),
                 )
             except botocore.exceptions.ClientError as ce:
                 app_log.exception(ce)

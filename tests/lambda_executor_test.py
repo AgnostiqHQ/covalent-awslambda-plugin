@@ -176,11 +176,13 @@ async def test_submit_task(lambda_executor, mocker):
     session_mock.return_value.__enter__.return_value.client.assert_called_with("lambda")
     session_mock.return_value.__enter__.return_value.client.return_value.invoke.assert_called_with(
         FunctionName=lambda_function_name,
-        Payload=json.dumps({
-            "S3_BUCKET_NAME": lambda_executor.s3_bucket_name,
-            "COVALENT_TASK_FUNC_FILENAME": "test.pkl",
-            "RESULT_FILENAME": "result.pkl",
-        }),
+        Payload=json.dumps(
+            {
+                "S3_BUCKET_NAME": lambda_executor.s3_bucket_name,
+                "COVALENT_TASK_FUNC_FILENAME": "test.pkl",
+                "RESULT_FILENAME": "result.pkl",
+            }
+        ),
     )
 
 
