@@ -20,8 +20,8 @@
 
 """Tests for Covalent AWSLambda executor"""
 
-import os
 import json
+import os
 from unittest import result
 
 import botocore.exceptions
