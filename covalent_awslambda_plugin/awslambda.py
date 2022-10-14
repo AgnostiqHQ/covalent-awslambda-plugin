@@ -178,7 +178,11 @@ class AWSLambdaExecutor(AWSExecutor):
         super().__init__(**required_attrs)
 
         # Lambda executor parameters
-        self.function_name = function_name or get_config("executors.awslambda.function_name") or "covalent-awslambda-executor"
+        self.function_name = (
+            function_name
+            or get_config("executors.awslambda.function_name")
+            or "covalent-awslambda-executor"
+        )
         self.poll_freq = poll_freq or get_config("executors.awslambda.poll_freq")
         self.timeout = timeout or get_config("executors.awslambda.timeout")
         self.memory_size = memory_size or get_config("executors.awslambda.memory_size")
