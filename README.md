@@ -30,6 +30,14 @@ This is an example of how a workflow can be constructed to use the AWS Lambda ex
 In the example, we train a Support Vector Machine (SVM) and use an instance of the executor
 to execute the `train_svm` electron. Note that we also require [DepsPip](https://covalent.readthedocs.io/en/latest/concepts/concepts.html#depspip) which will be required to execute the electrons.
 
+The `AWSLambdaExecutor` requires a AWS lambda function to already have been created in the user's VPC account with its `image_uri` pointing to Covalent's public ECR registry
+
+```
+image_uri = public.ecr.aws/covalent/covalent-lambda-executor:latest
+```
+
+The above public ECR registry holds the base container image the lambda function uses to execute tasks from a workflow during runtime. User's can pass in the name of their Lambda function to the constructor using the `function_name` argument
+
 ```python
 from numpy.random import permutation
 from sklearn import svm, datasets
@@ -40,11 +48,9 @@ deps_pip = ct.DepsPip(
 )
 
 executor = ct.executor.AWSLambdaExecutor(
+        function_name="my-lambda-function",
         region="us-east-1",
-        lambda_role_name="CovalentLambdaExecutionRole",
         s3_bucket_name="covalent-lambda-job-resources",
-        timeout=60,
-        memory_size=512
 )
 
 # Use executor plugin to train our SVM model.
@@ -121,6 +127,7 @@ In order for workflows to leverage this executor, users must ensure that all the
 | ------------ | ---------------- | ----------- |
 | IAM Role     | lambda_role_name | The IAM role this lambda will assume during execution of your tasks |
 | S3 Bucket    | s3_bucket_name   | The name of the S3 bucket that the executor can use to store temporary files |
+| AWS Lambda   | function_name     | Name of the pre-configured AWS Lambda function use to run tasks
 
 For exact details on how the above resources can be provisioned, visit our [read the docs (RTD) guide](https://covalent.readthedocs.io/en/latest/api/executors/awslambda.html)
 for this plugin.
