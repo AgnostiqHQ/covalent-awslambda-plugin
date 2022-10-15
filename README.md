@@ -30,7 +30,7 @@ This is an example of how a workflow can be constructed to use the AWS Lambda ex
 In the example, we train a Support Vector Machine (SVM) and use an instance of the executor
 to execute the `train_svm` electron. Note that we also require [DepsPip](https://covalent.readthedocs.io/en/latest/concepts/concepts.html#depspip) which will be required to execute the electrons.
 
-The `AWSLambdaExecutor` requires a AWS lambda function to already have been created in the user's VPC account with its `image_uri` pointing to Covalent's public ECR registry
+The `AWSLambdaExecutor` requires a AWS lambda function to already have been created in the user's AWS account with its `image_uri` pointing to Covalent's public ECR registry
 
 ```
 image_uri = public.ecr.aws/covalent/covalent-lambda-executor:latest
