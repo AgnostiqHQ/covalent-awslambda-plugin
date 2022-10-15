@@ -11,6 +11,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Updated `README` to reflect executor UX changes
 
+## [0.13.0] - 2022-10-15
+
+### Changed
+
+- Updated `AWSLambdaExecutor` to use an existing lambda function to execute tasks using the lambda base docker image
+- Removed `setup/teardown` and `DeploymentPackageBuilder`
+
+### Tests
+
+- Updated the lambda unit tests
+
 ## [0.12.0] - 2022-10-14
 
 ### Added

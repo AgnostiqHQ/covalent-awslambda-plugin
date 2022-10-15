@@ -34,11 +34,13 @@ RUN apt-get update && \
   unzip \
   libcurl4-openssl-dev && \
   rm -rf /var/lib/apt/lists/* && \
-  pip install --target "${LAMBDA_TASK_ROOT}" boto3 cloudpickle awslambdaric
+  pip install --target "${LAMBDA_TASK_ROOT}" --no-deps awslambdaric && \
+  pip install --target "${LAMBDA_TASK_ROOT}" boto3 cloudpickle
 
 COPY covalent_awslambda_plugin/exec.py ${LAMBDA_TASK_ROOT}
 
 WORKDIR ${LAMBDA_TASK_ROOT}
+ENV PYTHONPATH=$PYTHONPATH:${LAMBDA_TASK_ROOT}
 
 ENTRYPOINT [ "python", "-m", "awslambdaric" ]
 CMD ["exec.handler"]

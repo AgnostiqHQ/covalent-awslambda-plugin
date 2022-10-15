@@ -18,4 +18,4 @@
 #
 # Relief from the License may be granted by purchasing a commercial license.
 
-from .awslambda import AWSLambdaExecutor, DeploymentPackageBuilder
+from .awslambda import AWSLambdaExecutor
