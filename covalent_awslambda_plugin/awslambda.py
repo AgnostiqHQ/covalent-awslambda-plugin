@@ -86,6 +86,7 @@ class AWSLambdaExecutor(AWSExecutor):
             "profile": profile or get_config("executors.awslambda.profile"),
             "region": region or get_config("executors.awslambda.region"),
             "s3_bucket_name": s3_bucket_name or get_config("executors.awslambda.s3_bucket_name"),
+            "execution_role": execution_role or get_config("executors.awslambda.execution_role")
         }
 
         super().__init__(**required_attrs)
