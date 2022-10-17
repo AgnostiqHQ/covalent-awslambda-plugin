@@ -66,24 +66,18 @@ class AWSLambdaExecutor(AWSExecutor):
         profile: AWS profile (default: `default`)
         region: AWS region (default: `us-east-1`)
         s3_bucket_name: Name of a AWS S3 bucket that the executor can use to store temporary files (default: `covalent-lambda-job-resources`)
-        execution_role: AWS IAM role name use to provision the Lambda function (default: `CovalentLambdaExecutionRole`)
         poll_freq: Time interval between successive polls to the lambda function (default: `5`)
         timeout: Duration in seconds before the Lambda function times out (default: `60`)
-        cleanup: Flag represents whether or not to cleanup temporary files generated during execution (default: `True`)
     """
 
     def __init__(
         self,
         function_name: str,
         s3_bucket_name: str,
-        execution_role: str,
         credentials_file: str = None,
         profile: str = None,
         region: str = None,
         poll_freq: int = None,
-        timeout: int = None,
-        memory_size: int = None,
-        cleanup: bool = False,
     ) -> None:
 
         # AWSExecutor parameters
@@ -93,7 +87,6 @@ class AWSLambdaExecutor(AWSExecutor):
             "profile": profile or get_config("executors.awslambda.profile"),
             "region": region or get_config("executors.awslambda.region"),
             "s3_bucket_name": s3_bucket_name or get_config("executors.awslambda.s3_bucket_name"),
-            "execution_role": execution_role or get_config("executors.awslambda.execution_role"),
         }
 
         super().__init__(**required_attrs)
@@ -105,9 +98,6 @@ class AWSLambdaExecutor(AWSExecutor):
             or "covalent-awslambda-executor"
         )
         self.poll_freq = poll_freq or get_config("executors.awslambda.poll_freq")
-        self.timeout = timeout or get_config("executors.awslambda.timeout")
-        self.memory_size = memory_size or get_config("executors.awslambda.memory_size")
-        self.cleanup = cleanup
         self._key_exists = False
 
     @contextmanager
