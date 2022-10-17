@@ -39,11 +39,7 @@ def lambda_executor():
         profile="test_profile",
         region="us-east-1",
         s3_bucket_name="test_bucket_name",
-        execution_role="test_lambda_role",
         poll_freq=30,
-        timeout=10,
-        memory_size=512,
-        cleanup=True,
     )
 
 
@@ -53,24 +49,16 @@ def test_init():
         credentials_file="~/.aws/credentials",
         profile="test_profile",
         region="us-east-1",
-        execution_role="test_lambda_role",
         s3_bucket_name="test_bucket_name",
         poll_freq=30,
-        timeout=10,
-        memory_size=512,
-        cleanup=True,
     )
 
     assert awslambda.function_name == "test_function"
     assert awslambda.credentials_file == "~/.aws/credentials"
     assert awslambda.profile == "test_profile"
     assert awslambda.region == "us-east-1"
-    assert awslambda.execution_role == "test_lambda_role"
     assert awslambda.s3_bucket_name == "test_bucket_name"
     assert awslambda.poll_freq == 30
-    assert awslambda.timeout == 10
-    assert awslambda.memory_size == 512
-    assert awslambda.cleanup
 
 
 @pytest.mark.asyncio

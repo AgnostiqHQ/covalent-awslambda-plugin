@@ -30,13 +30,10 @@ This is an example of how a workflow can be constructed to use the AWS Lambda ex
 In the example, we train a Support Vector Machine (SVM) and use an instance of the executor
 to execute the `train_svm` electron. Note that we also require [DepsPip](https://covalent.readthedocs.io/en/latest/concepts/concepts.html#depspip) which will be required to execute the electrons.
 
-The `AWSLambdaExecutor` requires a AWS lambda function to already have been created in the user's AWS account with its `image_uri` pointing to Covalent's public ECR registry
+The `AWSLambdaExecutor` requires a container based AWS lambda function to already have been created in the user's AWS account with its `Container image URI` configured properly. Users can use Covalent's public Lambda executor registry i.e. `public.ecr.aws/covalent/covalent-lambda-executor:stable` when creating their Lambda functions.
+This public ECR registry holds the base container image the lambda function can use to execute tasks from a workflow.
 
-```
-image_uri = public.ecr.aws/covalent/covalent-lambda-executor:latest
-```
-
-The above public ECR registry holds the base container image the lambda function uses to execute tasks from a workflow during runtime. User's can pass in the name of their Lambda function to the constructor using the `function_name` argument
+User's can pass in the name of their Lambda function to the constructor using the `function_name` argument. See our [documentation](https://covalent.readthedocs.io/en/latest/api/executors/awslambda.html) for more details.
 
 ```python
 from numpy.random import permutation
@@ -49,7 +46,6 @@ deps_pip = ct.DepsPip(
 
 executor = ct.executor.AWSLambdaExecutor(
         function_name="my-lambda-function",
-        region="us-east-1",
         s3_bucket_name="covalent-lambda-job-resources",
 )
 
