@@ -158,8 +158,11 @@ async def test_submit_task(lambda_executor, mocker):
     lambda_function_name = f"lambda-{dispatch_id}-{node_id}"
     func_filaname = "test.pkl"
     result_filename = "result.pkl"
+    exception_filename = "exception.json"
 
-    await lambda_executor.submit_task(lambda_function_name, func_filaname, result_filename)
+    await lambda_executor.submit_task(
+        lambda_function_name, func_filaname, result_filename, exception_filename
+    )
 
     session_mock.return_value.__enter__.return_value.client.assert_called_with("lambda")
     session_mock.return_value.__enter__.return_value.client.return_value.invoke.assert_called_with(
@@ -169,8 +172,10 @@ async def test_submit_task(lambda_executor, mocker):
                 "S3_BUCKET_NAME": lambda_executor.s3_bucket_name,
                 "COVALENT_TASK_FUNC_FILENAME": "test.pkl",
                 "RESULT_FILENAME": "result.pkl",
+                "EXCEPTION_FILENAME": "exception.json",
             }
         ),
+        InvocationType="Event",
     )
 
 
@@ -187,6 +192,7 @@ async def test_submit_task_exception(lambda_executor, mocker):
     lambda_function_name = f"lambda-{dispatch_id}-{node_id}"
     func_filaname = "test.pkl"
     result_filename = "result.pkl"
+    exception_filename = "exception.json"
 
     client_error_mock = botocore.exceptions.ClientError(MagicMock(), MagicMock())
     session_mock.return_value.__enter__.return_value.client.return_value.invoke.side_effect = (
@@ -194,12 +200,21 @@ async def test_submit_task_exception(lambda_executor, mocker):
     )
 
     with pytest.raises(botocore.exceptions.ClientError):
-        await lambda_executor.submit_task(lambda_function_name, func_filaname, result_filename)
+        await lambda_executor.submit_task(
+            lambda_function_name, func_filaname, result_filename, exception_filename
+        )
         app_log_mock.exception.assert_called_with(client_error_mock)
 
 
 @pytest.mark.asyncio
 async def test_normal_run(lambda_executor, mocker):
+    function = None
+    args = []
+    kwargs = {}
+    dispatch_id = "asdf"
+    node_id = 0
+    task_metadata = {"dispatch_id": dispatch_id, "node_id": node_id}
+
     open_mock = mocker.patch("covalent_awslambda_plugin.awslambda.open")
     pickle_load_mock = mocker.patch("covalent_awslambda_plugin.awslambda.pickle.load")
     upload_mock = mocker.patch(
@@ -213,17 +228,59 @@ async def test_normal_run(lambda_executor, mocker):
         return_value=function_response,
     )
 
-    poll_mock = mocker.patch("covalent_awslambda_plugin.awslambda.AWSLambdaExecutor._poll_task")
-    query_mock = mocker.patch("covalent_awslambda_plugin.awslambda.AWSLambdaExecutor.query_result")
+    poll_mock = mocker.patch(
+        "covalent_awslambda_plugin.awslambda.AWSLambdaExecutor._poll_task",
+        return_value=f"result-{dispatch_id}-{node_id}.pkl",
+    )
+    query_exception_mock = mocker.patch(
+        "covalent_awslambda_plugin.awslambda.AWSLambdaExecutor.query_task_exception"
+    )
+    query_result_mock = mocker.patch(
+        "covalent_awslambda_plugin.awslambda.AWSLambdaExecutor.query_result"
+    )
+    await lambda_executor.run(function, args, kwargs, task_metadata)
+
+    poll_mock.assert_awaited_once()
+    query_result_mock.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_exception_during_run(lambda_executor, mocker):
     function = None
     args = []
     kwargs = {}
     dispatch_id = "asdf"
     node_id = 0
     task_metadata = {"dispatch_id": dispatch_id, "node_id": node_id}
-    await lambda_executor.run(function, args, kwargs, task_metadata)
+
+    open_mock = mocker.patch("covalent_awslambda_plugin.awslambda.open")
+    pickle_load_mock = mocker.patch("covalent_awslambda_plugin.awslambda.pickle.load")
+    upload_mock = mocker.patch(
+        "covalent_awslambda_plugin.awslambda.AWSLambdaExecutor._upload_task"
+    )
+
+    function_response = {"StatusCode": 200}
+
+    submit_mock = mocker.patch(
+        "covalent_awslambda_plugin.awslambda.AWSLambdaExecutor.submit_task",
+        return_value=function_response,
+    )
+
+    poll_mock = mocker.patch(
+        "covalent_awslambda_plugin.awslambda.AWSLambdaExecutor._poll_task",
+        return_value=f"exception-{dispatch_id}-{node_id}.json",
+    )
+    query_exception_mock = mocker.patch(
+        "covalent_awslambda_plugin.awslambda.AWSLambdaExecutor.query_task_exception"
+    )
+    query_result_mock = mocker.patch(
+        "covalent_awslambda_plugin.awslambda.AWSLambdaExecutor.query_result"
+    )
+    with pytest.raises(RuntimeError):
+        await lambda_executor.run(function, args, kwargs, task_metadata)
+
     poll_mock.assert_awaited_once()
-    query_mock.assert_awaited_once()
+    query_exception_mock.assert_awaited_once()
 
 
 @pytest.mark.asyncio
