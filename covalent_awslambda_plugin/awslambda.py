@@ -47,8 +47,7 @@ _EXECUTOR_PLUGIN_DEFAULTS = {
     "s3_bucket_name": "covalent-lambda-job-resources",
     "execution_role": "CovalentLambdaExecutionRole",
     "poll_freq": 5,
-    "timeout": 900,
-    "cleanup": False,
+    "timeout": 900
 }
 
 FUNC_FILENAME = "func-{dispatch_id}-{node_id}.pkl"
@@ -66,7 +65,7 @@ class AWSLambdaExecutor(AWSExecutor):
         region: AWS region (default: `us-east-1`)
         s3_bucket_name: Name of a AWS S3 bucket that the executor can use to store temporary files (default: `covalent-lambda-job-resources`)
         poll_freq: Time interval between successive polls to the lambda function (default: `5`)
-        timeout: Duration in seconds before the Lambda function times out (default: `60`)
+        timeout: Duration in seconds to poll Lambda function for results (default: `900`)
     """
 
     def __init__(
@@ -76,7 +75,9 @@ class AWSLambdaExecutor(AWSExecutor):
         credentials_file: str = None,
         profile: str = None,
         region: str = None,
+        execution_role: str = None,
         poll_freq: int = None,
+        timeout: int = 900
     ) -> None:
 
         # AWSExecutor parameters
