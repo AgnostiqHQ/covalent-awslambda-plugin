@@ -47,7 +47,7 @@ _EXECUTOR_PLUGIN_DEFAULTS = {
     "s3_bucket_name": "covalent-lambda-job-resources",
     "execution_role": "CovalentLambdaExecutionRole",
     "poll_freq": 5,
-    "timeout": 900
+    "timeout": 900,
 }
 
 FUNC_FILENAME = "func-{dispatch_id}-{node_id}.pkl"
@@ -77,7 +77,7 @@ class AWSLambdaExecutor(AWSExecutor):
         region: str = None,
         execution_role: str = None,
         poll_freq: int = None,
-        timeout: int = 900
+        timeout: int = 900,
     ) -> None:
 
         # AWSExecutor parameters
@@ -87,7 +87,7 @@ class AWSLambdaExecutor(AWSExecutor):
             "profile": profile or get_config("executors.awslambda.profile"),
             "region": region or get_config("executors.awslambda.region"),
             "s3_bucket_name": s3_bucket_name or get_config("executors.awslambda.s3_bucket_name"),
-            "execution_role": execution_role or get_config("executors.awslambda.execution_role")
+            "execution_role": execution_role or get_config("executors.awslambda.execution_role"),
         }
 
         super().__init__(**required_attrs)
