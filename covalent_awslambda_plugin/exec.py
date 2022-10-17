@@ -32,8 +32,11 @@ def handler(event, context):
     with open(local_func_filename, "rb") as f:
         function, args, kwargs = pickle.load(f)
 
-    result = function(*args, **kwargs)
-    with open(local_result_filename, "wb") as f:
-        pickle.dump(result, f)
-
-    s3.upload_file(local_result_filename, s3_bucket, result_filename)
+        try:
+            result = function(*args, **kwargs)
+            with open(local_result_filename, "wb") as f:
+                pickle.dump(result, f)
+            s3.upload_file(local_result_filename, s3_bucket, result_filename)
+        except Exception as ex:
+            # Write json and upload to S3
+            pass
