@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+### Changed
+
+- Make boto3 calls compatible with async library using partial threadpool pattern.
+
 ### Docs
 
 - Updated `README` to reflect executor UX changes
