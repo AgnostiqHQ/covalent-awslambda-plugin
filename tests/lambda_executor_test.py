@@ -638,24 +638,28 @@ async def test_query_task_exception_exception_path(lambda_executor, mocker):
 
 def test_pickle_func_sync(lambda_executor):
     """Test the synchronous function pickling method."""
+
     def test_func(x):
         return x
 
-    lambda_executor._pickle_func_sync(test_func, "/tmp", "test.pkl", [1], {'x': 1})
+    lambda_executor._pickle_func_sync(test_func, "/tmp", "test.pkl", [1], {"x": 1})
     with open("/tmp/test.pkl", "rb") as f:
         func, args, kwargs = pickle.load(f)
 
     assert func(1) == 1
     assert args == [1]
-    assert kwargs == {'x': 1}
+    assert kwargs == {"x": 1}
 
 
 @pytest.mark.asyncio
 async def test_pickle_func(lambda_executor, mocker):
     """Test the asynchronous function pickling method."""
-    pickle_func_sync_mock = mocker.patch("covalent_awslambda_plugin.awslambda.AWSLambdaExecutor._pickle_func_sync")
+    pickle_func_sync_mock = mocker.patch(
+        "covalent_awslambda_plugin.awslambda.AWSLambdaExecutor._pickle_func_sync"
+    )
+
     def test_func(x):
         return x
 
-    await lambda_executor._pickle_func(test_func, "/tmp", "test.pkl", [1], {'x': 1})
-    pickle_func_sync_mock.assert_called_once_with(test_func, "/tmp", "test.pkl", [1], {'x': 1})
+    await lambda_executor._pickle_func(test_func, "/tmp", "test.pkl", [1], {"x": 1})
+    pickle_func_sync_mock.assert_called_once_with(test_func, "/tmp", "test.pkl", [1], {"x": 1})
