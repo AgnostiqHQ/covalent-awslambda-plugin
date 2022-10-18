@@ -33,14 +33,14 @@ repos:
           - id: check-merge-conflict
           - id: requirements-txt-fixer
 
-    - repo: https://github.com/pre-commit/mirrors-isort
-      rev: v5.10.1
+    - repo: https://github.com/PyCQA/isort
+      rev: 5.10.1
       hooks:
           - id: isort
             args: ["--profile", "black"]
 
-    - repo: https://github.com/ambv/black
-      rev: 22.6.0
+    - repo: https://github.com/psf/black
+      rev: 22.10.0
       hooks:
           - id: black
             language_version: python3.8
