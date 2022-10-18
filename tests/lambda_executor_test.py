@@ -20,11 +20,11 @@
 
 """Tests for Covalent AWSLambda executor"""
 
-import cloudpickle as pickle
 import json
 import os
 
 import botocore.exceptions
+import cloudpickle as pickle
 import pytest
 from mock import AsyncMock, MagicMock
 
