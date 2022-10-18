@@ -565,3 +565,67 @@ async def test_return_result_object(lambda_executor, mocker):
     await lambda_executor.run(function, args, kwargs, task_metadata)
 
     query_result_mock.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_query_task_execption(lambda_executor, mocker):
+    exception_filename = "test_exepction_file"
+    workdir = "test_dir"
+
+    session_mock = mocker.patch(
+        "covalent_awslambda_plugin.awslambda.AWSLambdaExecutor.get_session",
+        return_value=MagicMock(),
+    )
+    session_client_mock = session_mock.return_value.__enter__.return_value.client
+    s3_client_mock = session_client_mock.return_value.download_file
+    open_mock = mocker.patch("covalent_awslambda_plugin.awslambda.open")
+    json_load_mock = mocker.patch("covalent_awslambda_plugin.awslambda.json.load")
+
+    lambda_executor.get_status = AsyncMock(return_value=True)
+
+    await lambda_executor.query_task_exception(workdir, exception_filename)
+
+    session_client_mock.assert_called_once_with("s3")
+    s3_client_mock.assert_called_once_with(
+        lambda_executor.s3_bucket_name,
+        exception_filename,
+        os.path.join(workdir, exception_filename),
+    )
+    open_mock.assert_called_once_with(os.path.join(workdir, exception_filename), "r")
+    json_load_mock.assert_called_once_with(open_mock.return_value.__enter__.return_value)
+
+
+@pytest.mark.asyncio
+async def test_query_task_exception_exception_path(lambda_executor, mocker):
+    exception_filename = "test_file"
+    workdir = "test_dir"
+    lambda_executor._key_exists = True
+
+    session_mock = mocker.patch(
+        "covalent_awslambda_plugin.awslambda.AWSLambdaExecutor.get_session",
+        return_value=MagicMock(),
+    )
+
+    session_client_mock = session_mock.return_value.__enter__.return_value.client
+    s3_client_mock = session_client_mock.return_value.download_file
+    client_error_mock = botocore.exceptions.ClientError(MagicMock(), MagicMock())
+    s3_client_mock.side_effect = client_error_mock
+
+    open_mock = mocker.patch("covalent_awslambda_plugin.awslambda.open")
+    json_load_mock = mocker.patch("covalent_awslambda_plugin.awslambda.json.load")
+    app_log_mock = mocker.patch("covalent_awslambda_plugin.awslambda.app_log")
+
+    with pytest.raises(botocore.exceptions.ClientError):
+        await lambda_executor.query_task_exception(workdir, exception_filename)
+
+        session_client_mock.assert_called_once_with("s3")
+
+        s3_client_mock.assert_called_once_with(
+            lambda_executor.s3_bucket_name,
+            exception_filename,
+            os.path.join(workdir, exception_filename),
+        )
+
+        app_log_mock.exception.assert_called_once_with(client_error_mock)
+        open_mock.assert_called_once_with(os.path.join(workdir, exception_filename), "r")
+        json_load_mock.assert_called_once_with(open_mock.return_value.__enter__.return_value)

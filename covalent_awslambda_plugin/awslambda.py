@@ -262,7 +262,7 @@ class AWSLambdaExecutor(AWSExecutor):
                 app_log.exception(ce)
                 raise
 
-        with open(os.path.join(workdir, exception_filename), "rb") as f:
+        with open(os.path.join(workdir, exception_filename), "r") as f:
             task_exception = json.load(f)
 
         return task_exception
