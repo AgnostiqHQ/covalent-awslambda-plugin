@@ -9,11 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Make boto3 calls compatible with async library using partial threadpool pattern.
+- Make function pickling async compatible.
+
+## [0.14.0] - 2022-10-18
 
 ### Docs
 
 - Updated `README` to reflect executor UX changes
+### Changed
+
+- Made `AWSLambdaExecutor` async compatible
+
+### Added
+
+- new methods to the Lambda executor to upload exception json files to S3 bucket
+- updated polling to poll for both result/exception file
+- added timeout to `_poll_task`
 
 ## [0.13.0] - 2022-10-15
 

@@ -21,7 +21,6 @@
 import asyncio
 import json
 import os
-import time
 from contextlib import contextmanager
 from typing import Callable, Dict, List, Tuple
 
@@ -47,13 +46,12 @@ _EXECUTOR_PLUGIN_DEFAULTS = {
     "s3_bucket_name": "covalent-lambda-job-resources",
     "execution_role": "CovalentLambdaExecutionRole",
     "poll_freq": 5,
-    "timeout": 60,
-    "memory_size": 512,
-    "cleanup": False,
+    "timeout": 900,
 }
 
 FUNC_FILENAME = "func-{dispatch_id}-{node_id}.pkl"
 RESULT_FILENAME = "result-{dispatch_id}-{node_id}.pkl"
+EXCEPTION_FILENAME = "exception-{dispatch_id}-{node_id}.json"
 
 
 class AWSLambdaExecutor(AWSExecutor):
@@ -61,12 +59,13 @@ class AWSLambdaExecutor(AWSExecutor):
 
     Args:
         function_name: Name of an existing lambda function to use during execution (default: `covalent-awsambda-executor`)
+        s3_bucket_name: Name of a AWS S3 bucket that the executor can use to store temporary files (default: `covalent-lambda-job-resources`)
+        execution_role: Name of the IAM role assigned to the AWS Lambda function
         credentials_file: Path to AWS credentials file (default: `~/.aws/credentials`)
         profile: AWS profile (default: `default`)
         region: AWS region (default: `us-east-1`)
-        s3_bucket_name: Name of a AWS S3 bucket that the executor can use to store temporary files (default: `covalent-lambda-job-resources`)
         poll_freq: Time interval between successive polls to the lambda function (default: `5`)
-        timeout: Duration in seconds before the Lambda function times out (default: `60`)
+        timeout: Duration in seconds to poll Lambda function for results (default: `900`)
     """
 
     def __init__(
@@ -76,7 +75,9 @@ class AWSLambdaExecutor(AWSExecutor):
         credentials_file: str = None,
         profile: str = None,
         region: str = None,
+        execution_role: str = "",
         poll_freq: int = None,
+        timeout: int = 900,
     ) -> None:
 
         # AWSExecutor parameters
@@ -86,6 +87,7 @@ class AWSLambdaExecutor(AWSExecutor):
             "profile": profile or get_config("executors.awslambda.profile"),
             "region": region or get_config("executors.awslambda.region"),
             "s3_bucket_name": s3_bucket_name or get_config("executors.awslambda.s3_bucket_name"),
+            "execution_role": execution_role or get_config("executors.awslambda.execution_role"),
         }
 
         super().__init__(**required_attrs)
@@ -97,7 +99,7 @@ class AWSLambdaExecutor(AWSExecutor):
             or "covalent-awslambda-executor"
         )
         self.poll_freq = poll_freq or get_config("executors.awslambda.poll_freq")
-        self._key_exists = False
+        self.timeout = timeout or get_config("executors.awslambda.timeout")
 
     @contextmanager
     def get_session(self) -> Session:
@@ -140,7 +142,7 @@ class AWSLambdaExecutor(AWSExecutor):
         await fut
 
     def submit_task_sync(
-        self, function_name: str, func_filename: str, result_filename: str
+        self, function_name: str, func_filename: str, result_filename: str, exception_filename: str
     ) -> Dict:
         """The actual (blocking) submit_task function"""
 
@@ -156,15 +158,17 @@ class AWSLambdaExecutor(AWSExecutor):
                             "S3_BUCKET_NAME": self.s3_bucket_name,
                             "COVALENT_TASK_FUNC_FILENAME": func_filename,
                             "RESULT_FILENAME": result_filename,
+                            "EXCEPTION_FILENAME": exception_filename,
                         }
                     ),
+                    InvocationType="Event",
                 )
             except botocore.exceptions.ClientError as ce:
                 app_log.exception(ce)
                 raise
 
     async def submit_task(
-        self, function_name: str, func_filename: str, result_filename: str
+        self, function_name: str, func_filename: str, result_filename: str, exception_filename: str
     ) -> Dict:
         """
         Submit the task by invoking the AWS Lambda function
@@ -177,28 +181,23 @@ class AWSLambdaExecutor(AWSExecutor):
         """
         loop = asyncio.get_running_loop()
         fut = loop.run_in_executor(
-            None, self.submit_task_sync, function_name, func_filename, result_filename
+            None,
+            self.submit_task_sync,
+            function_name,
+            func_filename,
+            result_filename,
+            exception_filename,
         )
         return await fut
 
-    def get_status_sync(self, object_key: str):
+    def get_status_sync(self, object_key: str) -> bool:
         with self.get_session() as session:
-            while not self._key_exists:
-                s3_client = session.client("s3")
-                try:
-                    current_keys = [
-                        item["Key"]
-                        for item in s3_client.list_objects(Bucket=self.s3_bucket_name)["Contents"]
-                    ]
-                    self._key_exists = object_key in current_keys
-
-                    if not self._key_exists:
-                        time.sleep(0.5)
-
-                    return self._key_exists
-                except botocore.exceptions.ClientError as ce:
-                    app_log.exception(ce)
-                    raise
+            s3_client = session.client("s3")
+            try:
+                s3_client.head_object(Bucket=self.s3_bucket_name, Key=object_key)
+            except botocore.exceptions.ClientError:
+                return False
+            return True
 
     async def get_status(self, object_key: str):
         """
@@ -215,17 +214,60 @@ class AWSLambdaExecutor(AWSExecutor):
         fut = loop.run_in_executor(None, self.get_status_sync, object_key)
         return await fut
 
-    async def _poll_task(self, object_key: str):
+    async def _poll_task(self, object_keys: List[str]) -> str:
         """
         Poll task until its result is ready
 
         Args:
             object_key: Name of the object to check if present in S3
         """
+        time_left = self.timeout
 
-        while not await self.get_status(object_key):
-            app_log.debug(f"Polling object: {object_key}")
-            await asyncio.sleep(self.poll_freq)
+        while time_left > 0:
+            for object_key in object_keys:
+                app_log.debug(f"Polling object: {object_key}")
+                status = await self.get_status(object_key)
+                if status:
+                    return object_key
+                await asyncio.sleep(self.poll_freq)
+            time_left -= self.poll_freq
+
+        raise TimeoutError(f"{object_keys} not found in {self.s3_bucket_name}")
+
+    def query_task_exception_sync(self, workdir: str, exception_filename: str):
+        """
+        Fetch the exception raised from the S3 bucket
+
+        Args:
+            workdir: Path on the local file system where the exception json dump is downloaded
+
+        Returns:
+            None
+        """
+        with self.get_session() as session:
+            s3_client = session.client("s3")
+            # Download file
+            try:
+                s3_client.download_file(
+                    self.s3_bucket_name,
+                    exception_filename,
+                    os.path.join(workdir, exception_filename),
+                )
+            except botocore.exceptions.ClientError as ce:
+                app_log.exception(ce)
+                raise
+
+        with open(os.path.join(workdir, exception_filename), "r") as f:
+            task_exception = json.load(f)
+
+        return task_exception
+
+    async def query_task_exception(self, workdir: str, exception_filename: str):
+        loop = asyncio.get_running_loop()
+        fut = loop.run_in_executor(
+            None, self.query_task_exception_sync, workdir, exception_filename
+        )
+        return await fut
 
     def query_result_sync(self, workdir: str, result_filename: str):
         """
@@ -237,20 +279,18 @@ class AWSLambdaExecutor(AWSExecutor):
         Returns:
             None
         """
-
-        if self._key_exists:
-            with self.get_session() as session:
-                s3_client = session.client("s3")
-                # Download file
-                try:
-                    s3_client.download_file(
-                        self.s3_bucket_name,
-                        result_filename,
-                        os.path.join(workdir, result_filename),
-                    )
-                except botocore.exceptions.ClientError as ce:
-                    app_log.exception(ce)
-                    raise
+        with self.get_session() as session:
+            s3_client = session.client("s3")
+            # Download file
+            try:
+                s3_client.download_file(
+                    self.s3_bucket_name,
+                    result_filename,
+                    os.path.join(workdir, result_filename),
+                )
+            except botocore.exceptions.ClientError as ce:
+                app_log.exception(ce)
+                raise
 
         with open(os.path.join(workdir, result_filename), "rb") as f:
             result_object = pickle.load(f)
@@ -260,6 +300,18 @@ class AWSLambdaExecutor(AWSExecutor):
     async def query_result(self, workdir: str, result_filename: str):
         loop = asyncio.get_running_loop()
         fut = loop.run_in_executor(None, self.query_result_sync, workdir, result_filename)
+        return await fut
+
+    def _pickle_func_sync(self, workdir: str, func_filename: str, args: List, kwargs: Dict):
+        """Method to pickle function synchronously."""
+        app_log.debug("Pickling function, args and kwargs..")
+        with open(os.path.join(workdir, func_filename), "wb") as f:
+            pickle.dump((function, args, kwargs), f)
+
+    async def _pickle_func(self, workdir: str, func_filename: str, args: List, kwargs: Dict):
+        """Pickle function asynchronously."""
+        loop = asyncio.get_running_loop()
+        fut = loop.run_in_executor(None, self._pickle_func_sync, workdir, func_filename, args, kwargs)
         return await fut
 
     async def run(self, function: Callable, args: List, kwargs: Dict, task_metadata: Dict):
@@ -280,18 +332,18 @@ class AWSLambdaExecutor(AWSExecutor):
 
         func_filename = FUNC_FILENAME.format(dispatch_id=dispatch_id, node_id=node_id)
         result_filename = RESULT_FILENAME.format(dispatch_id=dispatch_id, node_id=node_id)
+        exception_filename = EXCEPTION_FILENAME.format(dispatch_id=dispatch_id, node_id=node_id)
         app_log.debug(f"In run for task - {dispatch_id} - {node_id} ... ")
 
-        app_log.debug("Pickling function, args and kwargs..")
-        with open(os.path.join(workdir, func_filename), "wb") as f:
-            pickle.dump((function, args, kwargs), f)
+        # Pickle function asynchronously
+        await self._pickle_func(workdir, func_filename, args, kwargs)
 
         # Upload pickled file to s3 bucket created
         await self._upload_task(workdir, func_filename)
 
         # Invoke the created lambda
         lambda_invocation_response = await self.submit_task(
-            self.function_name, func_filename, result_filename
+            self.function_name, func_filename, result_filename, exception_filename
         )
         app_log.debug(f"Lambda function response: {lambda_invocation_response}")
         if "FunctionError" in lambda_invocation_response:
@@ -301,14 +353,23 @@ class AWSLambdaExecutor(AWSExecutor):
             )
 
         # Poll task
-        await self._poll_task(result_filename)
+        object_key = await self._poll_task([result_filename, exception_filename])
 
-        # Download the result object
-        app_log.debug(f"Retrieving result for task - {dispatch_id} - {node_id}")
-        result_object = await self.query_result(workdir, result_filename)
-        app_log.debug(f"Result retrived for task - {dispatch_id} - {node_id}")
+        if object_key == exception_filename:
+            # Download the raised exception
+            app_log.debug(
+                f"Retrieving exception raised during task execution - {dispatch_id} - {node_id}"
+            )
+            exception = await self.query_task_exception(workdir, exception_filename)
+            app_log.debug(f"Exception retrived for task - {dispatch_id} - {node_id}")
+            raise RuntimeError(exception)
 
-        return result_object
+        if object_key == result_filename:
+            # Download the result object
+            app_log.debug(f"Retrieving result for task - {dispatch_id} - {node_id}")
+            result_object = await self.query_result(workdir, result_filename)
+            app_log.debug(f"Result retrived for task - {dispatch_id} - {node_id}")
+            return result_object
 
     def cancel(self) -> None:
         """
