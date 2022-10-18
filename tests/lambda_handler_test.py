@@ -19,6 +19,7 @@
 # Relief from the License may be granted by purchasing a commercial license.
 
 import os
+from pickle import PickleError
 from unittest.mock import MagicMock
 
 import pytest
@@ -32,6 +33,7 @@ def event():
         "S3_BUCKET_NAME": "test",
         "COVALENT_TASK_FUNC_FILENAME": "test_function.pkl",
         "RESULT_FILENAME": "test_result.pkl",
+        "EXCEPTION_FILENAME": "exception.json",
     }
 
 
@@ -71,7 +73,7 @@ def test_assert_os_chdir_tmp(mocker, event):
     os_chdir_mock.assert_called_with("/tmp")
 
 
-def test_assert_s3_bucket_name_keyerror(mocker, event):
+def test_assert_s3_bucket_name_exception(mocker, event):
     mocker.patch("covalent_awslambda_plugin.exec.os.environ")
     mocker.patch("covalent_awslambda_plugin.exec.os.chdir")
     mocker.patch("covalent_awslambda_plugin.exec.os.path.join")
@@ -83,11 +85,18 @@ def test_assert_s3_bucket_name_keyerror(mocker, event):
     )
     mocker.patch("covalent_awslambda_plugin.exec.pickle.dump")
 
-    with pytest.raises(KeyError) as r:
-        handler({"COVALENT_TASK_FUNC_FILENAME": "test", "RESULT_FILENAME": "test"}, None)
+    with pytest.raises(Exception) as r:
+        handler(
+            {
+                "COVALENT_TASK_FUNC_FILENAME": "test",
+                "RESULT_FILENAME": "test",
+                "EXCEPTION_FILENAME": "exception",
+            },
+            None,
+        )
 
 
-def test_assert_covalent_task_filename_keyerror(mocker, event):
+def test_assert_covalent_task_filename_exception(mocker, event):
     mocker.patch("covalent_awslambda_plugin.exec.os.environ")
     mocker.patch("covalent_awslambda_plugin.exec.os.chdir")
     mocker.patch("covalent_awslambda_plugin.exec.os.path.join")
@@ -99,11 +108,18 @@ def test_assert_covalent_task_filename_keyerror(mocker, event):
     )
     mocker.patch("covalent_awslambda_plugin.exec.pickle.dump")
 
-    with pytest.raises(KeyError) as r:
-        handler({"S3_BUCKET_NAME": "test", "RESULT_FILENAME": "test"}, None)
+    with pytest.raises(Exception) as r:
+        handler(
+            {
+                "S3_BUCKET_NAME": "test",
+                "RESULT_FILENAME": "test",
+                "EXCEPTION_FILENAME": "exception",
+            },
+            None,
+        )
 
 
-def test_assert_result_filename_keyerror(mocker, event):
+def test_assert_result_filename_exception(mocker, event):
     mocker.patch("covalent_awslambda_plugin.exec.os.environ")
     mocker.patch("covalent_awslambda_plugin.exec.os.chdir")
     mocker.patch("covalent_awslambda_plugin.exec.os.path.join")
@@ -115,8 +131,38 @@ def test_assert_result_filename_keyerror(mocker, event):
     )
     mocker.patch("covalent_awslambda_plugin.exec.pickle.dump")
 
-    with pytest.raises(KeyError) as r:
-        handler({"S3_BUCKET_NAME": "test", "COVALENT_TASK_FUNC_FILENAME": "test"}, None)
+    with pytest.raises(Exception) as r:
+        handler(
+            {
+                "S3_BUCKET_NAME": "test",
+                "COVALENT_TASK_FUNC_FILENAME": "test",
+                "EXCEPTION_FILENAME": "exception",
+            },
+            None,
+        )
+
+
+def test_assert_exception_filename_exception(mocker, event):
+    mocker.patch("covalent_awslambda_plugin.exec.os.environ")
+    mocker.patch("covalent_awslambda_plugin.exec.os.chdir")
+    mocker.patch("covalent_awslambda_plugin.exec.os.path.join")
+    mocker.patch("covalent_awslambda_plugin.exec.boto3.client", return_value=MagicMock())
+    mocker.patch("covalent_awslambda_plugin.exec.open")
+    mocker.patch(
+        "covalent_awslambda_plugin.exec.pickle.load",
+        return_value=(MagicMock(), MagicMock(), MagicMock()),
+    )
+    mocker.patch("covalent_awslambda_plugin.exec.pickle.dump")
+
+    with pytest.raises(Exception) as r:
+        handler(
+            {
+                "S3_BUCKET_NAME": "test",
+                "COVALENT_TASK_FUNC_FILENAME": "test",
+                "RESULT_FILENAME": "test",
+            },
+            None,
+        )
 
 
 def test_assert_os_path_join(mocker, event):
@@ -134,7 +180,7 @@ def test_assert_os_path_join(mocker, event):
     # invoke the handler
     handler(event, None)
 
-    assert os_path_join_mock.call_count == 2
+    assert os_path_join_mock.call_count == 3
 
 
 def test_assert_boto3_client(mocker, event):
@@ -234,7 +280,7 @@ def test_assert_pickle_dump(mocker, event):
     pickle_dump_mock.assert_called_once()
 
 
-def test_assert_s3_upload_file(mocker, event):
+def test_assert_s3_upload_result_file(mocker, event):
     mocker.patch("covalent_awslambda_plugin.exec.os.chdir")
     mocker.patch("covalent_awslambda_plugin.exec.os.environ")
     mocker.patch("covalent_awslambda_plugin.exec.os.path.join")
