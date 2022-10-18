@@ -485,3 +485,83 @@ async def test_run_async_subprocess(lambda_executor):
     assert (
         read_file_stderr.decode().strip() == f"cat: {non_existent_file}: No such file or directory"
     )
+
+
+@pytest.mark.asyncio
+async def test_poll_task(lambda_executor, mocker):
+    lambda_executor.timeout = 5
+    object_key = "test"
+    get_status_mock = mocker.patch(
+        "covalent_awslambda_plugin.awslambda.AWSLambdaExecutor.get_status", return_value=True
+    )
+    key = await lambda_executor._poll_task([object_key])
+    get_status_mock.assert_called_once()
+    assert key == object_key
+
+
+@pytest.mark.asyncio
+async def test_poll_task_exception_path(lambda_executor, mocker):
+    lambda_executor.timeout = 5
+    get_status_mock = mocker.patch(
+        "covalent_awslambda_plugin.awslambda.AWSLambdaExecutor.get_status", return_value=False
+    )
+    asyncio_sleep_mock = mocker.patch("covalent_awslambda_plugin.awslambda.asyncio.sleep")
+
+    with pytest.raises(RuntimeError):
+        await lambda_executor._poll_task(["test"])
+
+    get_status_mock.assert_called_once()
+    asyncio_sleep_mock.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_raise_task_exception(lambda_executor, mocker):
+    task_metadata = {"dispatch_id": "abcd", "node_id": 0}
+    function = None
+    args = []
+    kwargs = {}
+
+    exception_filename = (
+        f"exception-{task_metadata['dispatch_id']}-{task_metadata['node_id']}.json"
+    )
+    mocker.patch("covalent_awslambda_plugin.awslambda.open")
+    mocker.patch("covalent_awslambda_plugin.awslambda.AWSLambdaExecutor._upload_task")
+    mocker.patch(
+        "covalent_awslambda_plugin.awslambda.AWSLambdaExecutor.submit_task", return_value=""
+    )
+    mocker.patch("covalent_awslambda_plugin.awslambda.app_log")
+    mocker.patch(
+        "covalent_awslambda_plugin.awslambda.AWSLambdaExecutor._poll_task",
+        return_value=exception_filename,
+    )
+    mocker.patch("covalent_awslambda_plugin.awslambda.AWSLambdaExecutor.query_task_exception")
+
+    with pytest.raises(RuntimeError):
+        await lambda_executor.run(function, args, kwargs, task_metadata)
+
+
+@pytest.mark.asyncio
+async def test_return_result_object(lambda_executor, mocker):
+    task_metadata = {"dispatch_id": "abcd", "node_id": 0}
+    function = None
+    args = []
+    kwargs = {}
+
+    result_filename = f"result-{task_metadata['dispatch_id']}-{task_metadata['node_id']}.pkl"
+    mocker.patch("covalent_awslambda_plugin.awslambda.open")
+    mocker.patch("covalent_awslambda_plugin.awslambda.AWSLambdaExecutor._upload_task")
+    mocker.patch(
+        "covalent_awslambda_plugin.awslambda.AWSLambdaExecutor.submit_task", return_value=""
+    )
+    mocker.patch("covalent_awslambda_plugin.awslambda.app_log")
+    mocker.patch(
+        "covalent_awslambda_plugin.awslambda.AWSLambdaExecutor._poll_task",
+        return_value=result_filename,
+    )
+    query_result_mock = mocker.patch(
+        "covalent_awslambda_plugin.awslambda.AWSLambdaExecutor.query_result", return_value="object"
+    )
+
+    await lambda_executor.run(function, args, kwargs, task_metadata)
+
+    query_result_mock.assert_awaited_once()
