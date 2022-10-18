@@ -11,6 +11,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Pre-commit auto update.
 
+## [0.14.0] - 2022-10-18
+
+### Docs
+
+- Updated `README` to reflect executor UX changes
+### Changed
+
+- Made `AWSLambdaExecutor` async compatible
+
+### Added
+
+- new methods to the Lambda executor to upload exception json files to S3 bucket
+- updated polling to poll for both result/exception file
+- added timeout to `_poll_task`
+
+## [0.13.0] - 2022-10-15
+
+### Changed
+
+- Updated `AWSLambdaExecutor` to use an existing lambda function to execute tasks using the lambda base docker image
+- Removed `setup/teardown` and `DeploymentPackageBuilder`
+
+### Tests
+
+- Updated the lambda unit tests
+
+## [0.12.0] - 2022-10-14
+
+### Added
+
+- Adding `Dockerfile` to build the base Lambda executor image
+- Update lambda `exec.py` to extract task specific metadata from the `event` input
+
 ## [0.11.2] - 2022-10-06
 
 ### Fixed

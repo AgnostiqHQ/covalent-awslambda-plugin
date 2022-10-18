@@ -18,4 +18,29 @@
 #
 # Relief from the License may be granted by purchasing a commercial license.
 
-from .awslambda import AWSLambdaExecutor
+ARG COVALENT_BASE_IMAGE
+FROM ${COVALENT_BASE_IMAGE}
+
+# AWS lambda specific env variables
+ARG LAMBDA_TASK_ROOT=/var/task
+
+# Install aws-lambda-cpp build dependencies
+RUN apt-get update && \
+  apt-get install -y --no-install-recommends \
+  rsync \
+  g++ \
+  make \
+  cmake \
+  unzip \
+  libcurl4-openssl-dev && \
+  rm -rf /var/lib/apt/lists/* && \
+  pip install --target "${LAMBDA_TASK_ROOT}" --no-deps awslambdaric && \
+  pip install --target "${LAMBDA_TASK_ROOT}" boto3 cloudpickle
+
+COPY covalent_awslambda_plugin/exec.py ${LAMBDA_TASK_ROOT}
+
+WORKDIR ${LAMBDA_TASK_ROOT}
+ENV PYTHONPATH=$PYTHONPATH:${LAMBDA_TASK_ROOT}
+
+ENTRYPOINT [ "python", "-m", "awslambdaric" ]
+CMD ["exec.handler"]
