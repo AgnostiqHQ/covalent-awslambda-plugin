@@ -195,10 +195,10 @@ class AWSLambdaExecutor(AWSExecutor):
         with self.get_session() as session:
             s3_client = session.client("s3")
             try:
-                response = s3_client.head_object(Bucket=self.s3_bucket_name, Key=object_key)
-                return True if response["ResponseMetadata"]["HTTPStatusCode"] == 200 else False
-            except botocore.exceptions.ClientError as ce:
-                app_log.debug(str(ce))
+                s3_client.head_object(Bucket=self.s3_bucket_name, Key=object_key)
+            except botocore.exceptions.ClientError:
+                return False
+            return True
 
     async def get_status(self, object_key: str):
         """

@@ -327,7 +327,6 @@ async def test_get_status(lambda_executor, mocker):
     s3_client_head_object_mock = (
         session_mock.return_value.__enter__.return_value.client.return_value.head_object
     )
-    s3_client_head_object_mock.return_value = {"ResponseMetadata": {"HTTPStatusCode": 200}}
     mocker.patch("covalent_awslambda_plugin.awslambda.app_log")
 
     key_exists = await lambda_executor.get_status(result_filename)
@@ -352,7 +351,7 @@ async def test_get_status_else_path(lambda_executor, mocker):
     s3_client_head_object_mock = (
         session_mock.return_value.__enter__.return_value.client.return_value.head_object
     )
-    s3_client_head_object_mock.return_value = {"ResponseMetadata": {"HTTPStatusCode": 402}}
+    s3_client_head_object_mock.side_effect = botocore.exceptions.ClientError({}, "head_object")
 
     return_value = await lambda_executor.get_status(result_filename)
 
@@ -383,7 +382,6 @@ async def test_get_status_exception_path(lambda_executor, mocker):
     return_value = await lambda_executor.get_status(result_filename)
 
     session_client_mock.assert_called_with("s3")
-    app_log_mock.debug.assert_called_with(str(s3_client_head_object_mock.side_effect))
     s3_client_head_object_mock.assert_called_with(
         Bucket=lambda_executor.s3_bucket_name, Key=result_filename
     )
