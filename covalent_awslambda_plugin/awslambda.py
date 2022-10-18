@@ -269,7 +269,9 @@ class AWSLambdaExecutor(AWSExecutor):
 
     async def query_task_exception(self, workdir: str, exception_filename: str):
         loop = asyncio.get_running_loop()
-        fut = loop.run_in_executor(None, self.query_task_exception_sync, workdir, exception_filename)
+        fut = loop.run_in_executor(
+            None, self.query_task_exception_sync, workdir, exception_filename
+        )
         return await fut
 
     def query_result_sync(self, workdir: str, result_filename: str):
@@ -352,18 +354,14 @@ class AWSLambdaExecutor(AWSExecutor):
             app_log.debug(
                 f"Retrieving exception raised during task execution - {dispatch_id} - {node_id}"
             )
-            exception = await self.query_task_exception(
-                workdir, exception_filename
-            )
+            exception = await self.query_task_exception(workdir, exception_filename)
             app_log.debug(f"Exception retrived for task - {dispatch_id} - {node_id}")
             raise RuntimeError(exception)
 
         if object_key == result_filename:
             # Download the result object
             app_log.debug(f"Retrieving result for task - {dispatch_id} - {node_id}")
-            result_object = await self.query_result(
-                workdir, result_filename
-            )
+            result_object = await self.query_result(workdir, result_filename)
             app_log.debug(f"Result retrived for task - {dispatch_id} - {node_id}")
             return result_object
 
