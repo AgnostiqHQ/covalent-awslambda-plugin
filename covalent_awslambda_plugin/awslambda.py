@@ -60,10 +60,11 @@ class AWSLambdaExecutor(AWSExecutor):
 
     Args:
         function_name: Name of an existing lambda function to use during execution (default: `covalent-awsambda-executor`)
+        s3_bucket_name: Name of a AWS S3 bucket that the executor can use to store temporary files (default: `covalent-lambda-job-resources`)
+        execution_role: Name of the IAM role assigned to the AWS Lambda function
         credentials_file: Path to AWS credentials file (default: `~/.aws/credentials`)
         profile: AWS profile (default: `default`)
         region: AWS region (default: `us-east-1`)
-        s3_bucket_name: Name of a AWS S3 bucket that the executor can use to store temporary files (default: `covalent-lambda-job-resources`)
         poll_freq: Time interval between successive polls to the lambda function (default: `5`)
         timeout: Duration in seconds to poll Lambda function for results (default: `900`)
     """
@@ -75,7 +76,7 @@ class AWSLambdaExecutor(AWSExecutor):
         credentials_file: str = None,
         profile: str = None,
         region: str = None,
-        execution_role: str = None,
+        execution_role: str = "",
         poll_freq: int = None,
         timeout: int = 900,
     ) -> None:
@@ -268,7 +269,7 @@ class AWSLambdaExecutor(AWSExecutor):
 
     async def query_task_exception(self, workdir: str, exception_filename: str):
         loop = asyncio.get_running_loop()
-        fut = loop.run_in_executor(None, self.query_exception_sync, workdir, exception_filename)
+        fut = loop.run_in_executor(None, self.query_task_exception_sync, workdir, exception_filename)
         return await fut
 
     def query_result_sync(self, workdir: str, result_filename: str):
@@ -352,7 +353,7 @@ class AWSLambdaExecutor(AWSExecutor):
                 f"Retrieving exception raised during task execution - {dispatch_id} - {node_id}"
             )
             exception = await self.query_task_exception(
-                workdir, result_filename, exception_filename
+                workdir, exception_filename
             )
             app_log.debug(f"Exception retrived for task - {dispatch_id} - {node_id}")
             raise RuntimeError(exception)
@@ -361,7 +362,7 @@ class AWSLambdaExecutor(AWSExecutor):
             # Download the result object
             app_log.debug(f"Retrieving result for task - {dispatch_id} - {node_id}")
             result_object = await self.query_result(
-                workdir, object_key, result_filename, exception_filename
+                workdir, result_filename
             )
             app_log.debug(f"Result retrived for task - {dispatch_id} - {node_id}")
             return result_object
