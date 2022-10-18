@@ -324,16 +324,18 @@ async def test_get_status(lambda_executor, mocker):
     result_filename = "test_file"
 
     session_client_mock = session_mock.return_value.__enter__.return_value.client
-    s3_client_list_objects_mock = (
-        session_mock.return_value.__enter__.return_value.client.return_value.list_objects
+    s3_client_head_object_mock = (
+        session_mock.return_value.__enter__.return_value.client.return_value.head_object
     )
-    s3_client_list_objects_mock.return_value = {"Contents": [{"Key": result_filename}]}
+    s3_client_head_object_mock.return_value = {"ResponseMetadata": {"HTTPStatusCode": 200}}
     mocker.patch("covalent_awslambda_plugin.awslambda.app_log")
 
     key_exists = await lambda_executor.get_status(result_filename)
 
     session_client_mock.assert_called_with("s3")
-    s3_client_list_objects_mock.assert_called_with(Bucket=lambda_executor.s3_bucket_name)
+    s3_client_head_object_mock.assert_called_with(
+        Bucket=lambda_executor.s3_bucket_name, Key=result_filename
+    )
     assert key_exists
 
 
@@ -347,15 +349,17 @@ async def test_get_status_else_path(lambda_executor, mocker):
     result_filename = "test_file"
 
     session_client_mock = session_mock.return_value.__enter__.return_value.client
-    s3_client_list_objects_mock = (
-        session_mock.return_value.__enter__.return_value.client.return_value.list_objects
+    s3_client_head_object_mock = (
+        session_mock.return_value.__enter__.return_value.client.return_value.head_object
     )
-    s3_client_list_objects_mock.return_value = {"Contents": [{"Key": "not_test_file"}]}
+    s3_client_head_object_mock.return_value = {"ResponseMetadata": {"HTTPStatusCode": 402}}
 
     return_value = await lambda_executor.get_status(result_filename)
 
     session_client_mock.assert_called_with("s3")
-    s3_client_list_objects_mock.assert_called_with(Bucket=lambda_executor.s3_bucket_name)
+    s3_client_head_object_mock.assert_called_with(
+        Bucket=lambda_executor.s3_bucket_name, Key=result_filename
+    )
     assert not return_value
 
 
@@ -369,17 +373,20 @@ async def test_get_status_exception_path(lambda_executor, mocker):
     result_filename = "test_file"
 
     session_client_mock = session_mock.return_value.__enter__.return_value.client
+    app_log_mock = mocker.patch("covalent_awslambda_plugin.awslambda.app_log")
 
-    s3_client_list_objects_mock = (
-        session_mock.return_value.__enter__.return_value.client.return_value.list_objects
+    s3_client_head_object_mock = (
+        session_mock.return_value.__enter__.return_value.client.return_value.head_object
     )
-    s3_client_list_objects_mock.side_effect = botocore.exceptions.ClientError({}, "list_objects")
+    s3_client_head_object_mock.side_effect = botocore.exceptions.ClientError({}, "head_object")
 
-    with pytest.raises(botocore.exceptions.ClientError) as ex:
-        return_value = await lambda_executor.get_status(result_filename)
+    return_value = await lambda_executor.get_status(result_filename)
 
     session_client_mock.assert_called_with("s3")
-    s3_client_list_objects_mock.assert_called_with(Bucket=lambda_executor.s3_bucket_name)
+    app_log_mock.debug.assert_called_with(str(s3_client_head_object_mock.side_effect))
+    s3_client_head_object_mock.assert_called_with(
+        Bucket=lambda_executor.s3_bucket_name, Key=result_filename
+    )
 
 
 @pytest.mark.asyncio
@@ -507,7 +514,7 @@ async def test_poll_task_exception_path(lambda_executor, mocker):
     )
     asyncio_sleep_mock = mocker.patch("covalent_awslambda_plugin.awslambda.asyncio.sleep")
 
-    with pytest.raises(RuntimeError):
+    with pytest.raises(TimeoutError):
         await lambda_executor._poll_task(["test"])
 
     get_status_mock.assert_called_once()

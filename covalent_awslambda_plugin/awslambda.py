@@ -195,14 +195,10 @@ class AWSLambdaExecutor(AWSExecutor):
         with self.get_session() as session:
             s3_client = session.client("s3")
             try:
-                current_keys = [
-                    item["Key"]
-                    for item in s3_client.list_objects(Bucket=self.s3_bucket_name)["Contents"]
-                ]
-                return object_key in current_keys
+                response = s3_client.head_object(Bucket=self.s3_bucket_name, Key=object_key)
+                return True if response["ResponseMetadata"]["HTTPStatusCode"] == 200 else False
             except botocore.exceptions.ClientError as ce:
-                app_log.exception(ce)
-                raise
+                app_log.debug(str(ce))
 
     async def get_status(self, object_key: str):
         """
@@ -237,7 +233,7 @@ class AWSLambdaExecutor(AWSExecutor):
                 await asyncio.sleep(self.poll_freq)
             time_left -= self.poll_freq
 
-        raise RuntimeError(f"Polling for {object_keys} timed out!")
+        raise TimeoutError(f"{object_keys} not found in {self.s3_bucket_name}")
 
     def query_task_exception_sync(self, workdir: str, exception_filename: str):
         """
