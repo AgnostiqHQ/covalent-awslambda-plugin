@@ -17,3 +17,11 @@
 # FITNESS FOR A PARTICULAR PURPOSE. See the License for more details.
 #
 # Relief from the License may be granted by purchasing a commercial license.
+
+"""Helper methods for AWS Batch executor plugin."""
+
+import asyncio
+
+async def _execute_partial_in_threadpool(partial_func):
+    loop = asyncio.get_running_loop()
+    return await loop.run_in_executor(None, partial_func)
