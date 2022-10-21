@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Remove unused file. 
+- Remove unused file.
 
 ## [0.16.0] - 2022-10-21
 
