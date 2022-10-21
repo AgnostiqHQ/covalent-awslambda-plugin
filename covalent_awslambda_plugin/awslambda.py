@@ -21,7 +21,6 @@
 import asyncio
 import json
 import os
-import time
 from contextlib import contextmanager
 from typing import Callable, Dict, List, Tuple
 
@@ -303,6 +302,24 @@ class AWSLambdaExecutor(AWSExecutor):
         fut = loop.run_in_executor(None, self.query_result_sync, workdir, result_filename)
         return await fut
 
+    def _pickle_func_sync(
+        self, function: Callable, workdir: str, func_filename: str, args: List, kwargs: Dict
+    ):
+        """Method to pickle function synchronously."""
+        app_log.debug("Pickling function, args and kwargs..")
+        with open(os.path.join(workdir, func_filename), "wb") as f:
+            pickle.dump((function, args, kwargs), f)
+
+    async def _pickle_func(
+        self, function: Callable, workdir: str, func_filename: str, args: List, kwargs: Dict
+    ):
+        """Pickle function asynchronously."""
+        loop = asyncio.get_running_loop()
+        fut = loop.run_in_executor(
+            None, self._pickle_func_sync, function, workdir, func_filename, args, kwargs
+        )
+        return await fut
+
     async def run(self, function: Callable, args: List, kwargs: Dict, task_metadata: Dict):
         """Run the executor
 
@@ -324,9 +341,8 @@ class AWSLambdaExecutor(AWSExecutor):
         exception_filename = EXCEPTION_FILENAME.format(dispatch_id=dispatch_id, node_id=node_id)
         app_log.debug(f"In run for task - {dispatch_id} - {node_id} ... ")
 
-        app_log.debug("Pickling function, args and kwargs..")
-        with open(os.path.join(workdir, func_filename), "wb") as f:
-            pickle.dump((function, args, kwargs), f)
+        # Pickle function asynchronously
+        await self._pickle_func(function, workdir, func_filename, args, kwargs)
 
         # Upload pickled file to s3 bucket created
         await self._upload_task(workdir, func_filename)

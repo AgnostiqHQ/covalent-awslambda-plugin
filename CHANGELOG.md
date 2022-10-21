@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+### Changed
+
+- Make function pickling async compatible.
+
 ## [0.15.0] - 2022-10-18
 
 ### Changed
