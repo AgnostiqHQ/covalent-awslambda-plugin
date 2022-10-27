@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+### Fixed
+
+- Make `function_name` and `s3_bucket_name` variables optional.
+
 ## [0.18.0] - 2022-10-27
 
 ### Changed
