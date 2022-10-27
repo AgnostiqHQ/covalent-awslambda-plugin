@@ -137,6 +137,7 @@ class AWSLambdaExecutor(AWSExecutor):
         app_log.debug(f"Function {func_filename} uploaded to S3 bucket {self.s3_bucket_name}")
 
     async def _upload_task(self, workdir: str, func_filename: str):
+        """Method to upload task."""
         loop = asyncio.get_running_loop()
         fut = loop.run_in_executor(None, self._upload_task_sync, workdir, func_filename)
         await fut
@@ -145,7 +146,6 @@ class AWSLambdaExecutor(AWSExecutor):
         self, function_name: str, func_filename: str, result_filename: str, exception_filename: str
     ) -> Dict:
         """The actual (blocking) submit_task function"""
-
         app_log.debug(f"Invoking AWS Lambda function {function_name}")
 
         with self.get_session() as session:
