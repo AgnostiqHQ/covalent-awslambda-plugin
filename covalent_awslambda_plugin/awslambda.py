@@ -70,8 +70,8 @@ class AWSLambdaExecutor(AWSExecutor):
 
     def __init__(
         self,
-        function_name: str,
-        s3_bucket_name: str,
+        function_name: str = None,
+        s3_bucket_name: str = None,
         credentials_file: str = None,
         profile: str = None,
         region: str = None,
