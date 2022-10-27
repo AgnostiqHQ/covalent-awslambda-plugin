@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+### Changed
+
+- Updated base aws lambda executor image to explicitly install covalent assuming python slim-buster `COVALENT_BASE_IMAGE` used.
+
 ## [0.17.0] - 2022-10-25
 
 ### Changed
