@@ -18,9 +18,9 @@
 #
 # Relief from the License may be granted by purchasing a commercial license.
 
+import covalent as ct
 import pytest
 
-import covalent as ct
 from tests.functional_tests.fixtures.executor import executor
 
 
