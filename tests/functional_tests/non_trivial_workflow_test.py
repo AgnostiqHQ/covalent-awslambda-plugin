@@ -22,23 +22,23 @@ import random
 from dataclasses import dataclass
 from typing import Dict, List
 
-import covalent as ct
 import pytest
 
+import covalent as ct
 from tests.functional_tests.fixtures.executor import executor
-
-# Width and depth
-N = 3
-
-
-@dataclass
-class CustomMatrix:
-    matrix_config: Dict
-    matrix: List[List[int]]
 
 
 @pytest.mark.functional_tests
 def test_non_trivial_workflow():
+
+    # Width and depth
+    N = 3
+
+    @dataclass
+    class CustomMatrix:
+        matrix_config: Dict
+        matrix: List[List[int]]
+
     @ct.electron(executor=executor)
     def expand(x: CustomMatrix):
         n_dims = x.matrix_config["n_dims"]
