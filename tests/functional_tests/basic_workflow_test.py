@@ -18,26 +18,30 @@
 #
 # Relief from the License may be granted by purchasing a commercial license.
 
+import pytest
+
 import covalent as ct
-from covalent._shared_files import logger
-from utils.executor_instance import executor
-
-app_log = logger.app_log
-log_stack_info = logger.log_stack_info
+from tests.functional_tests.fixtures.executor import executor
 
 
-@ct.electron(executor=executor)
-def failing_task(a, b):
-    raise NotImplementedError("Not implemented!!!")
+@pytest.mark.functional_tests
+def test_basic_workflow():
+    @ct.electron(executor=executor)
+    def join_words(a, b):
+        return ", ".join([a, b])
 
+    @ct.electron(executor=executor)
+    def excitement(a):
+        return f"{a}!"
 
-@ct.lattice
-def failing_workflow(a, b):
-    failing_task(a, b)
+    @ct.lattice
+    def simple_workflow(a, b):
+        phrase = join_words(a, b)
+        return excitement(phrase)
 
+    dispatch_id = ct.dispatch(simple_workflow)("Hello", "World")
 
-dispatch_id = ct.dispatch(failing_workflow)(1, 2)
-app_log.debug(f"AWS Lambda functional test `failing_workflow.py` dispatch id: {dispatch_id}")
+    result = ct.get_result(dispatch_id, wait=True)
+    status = str(result.status)
 
-result = ct.get_result(dispatch_id, wait=True)
-assert result.status == ct.status.FAILED
+    assert status == str(ct.status.COMPLETED)

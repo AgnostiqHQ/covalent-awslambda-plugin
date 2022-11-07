@@ -18,4 +18,23 @@
 #
 # Relief from the License may be granted by purchasing a commercial license.
 
-from .executor_instance import executor
+import pytest
+
+import covalent as ct
+from tests.functional_tests.fixtures.executor import executor
+
+
+@pytest.mark.functional_tests
+def test_failing_workflow():
+    @ct.electron(executor=executor)
+    def failing_task(a, b):
+        raise NotImplementedError("Not implemented!!!")
+
+    @ct.lattice
+    def failing_workflow(a, b):
+        failing_task(a, b)
+
+    dispatch_id = ct.dispatch(failing_workflow)(1, 2)
+
+    result = ct.get_result(dispatch_id, wait=True)
+    assert result.status == ct.status.FAILED
