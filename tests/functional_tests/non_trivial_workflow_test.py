@@ -22,9 +22,9 @@ import random
 from dataclasses import dataclass
 from typing import Dict, List
 
+import covalent as ct
 import pytest
 
-import covalent as ct
 from tests.functional_tests.fixtures.executor import executor
 
 
