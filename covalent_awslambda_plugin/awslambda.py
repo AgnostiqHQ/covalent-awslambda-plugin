@@ -39,10 +39,9 @@ executor_plugin_name = "AWSLambdaExecutor"
 
 _EXECUTOR_PLUGIN_DEFAULTS = {
     "function_name": "covalent-awslambda-executor",
-    "credentials_file": os.environ.get("AWS_SHARED_CREDENTIALS_FILE")
-    or os.path.join(os.environ.get("HOME"), ".aws/credentials"),
-    "profile": os.environ.get("AWS_PROFILE") or "default",
-    "region": os.environ.get("AWS_REGION") or "us-east-1",
+    "credentials_file": "",
+    "profile": "",
+    "region": "",
     "s3_bucket_name": "covalent-lambda-job-resources",
     "execution_role": "CovalentLambdaExecutionRole",
     "poll_freq": 5,
