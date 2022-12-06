@@ -18,19 +18,18 @@
 #
 # Relief from the License may be granted by purchasing a commercial license.
 
-import covalent as ct
 import pytest
 
-from tests.functional_tests.fixtures.executor import executor
+import covalent as ct
 
 
 @pytest.mark.functional_tests
 def test_basic_workflow():
-    @ct.electron(executor=executor)
+    @ct.electron(executor="awslambda")
     def join_words(a, b):
         return ", ".join([a, b])
 
-    @ct.electron(executor=executor)
+    @ct.electron(executor="awslambda")
     def excitement(a):
         return f"{a}!"
 
