@@ -25,8 +25,6 @@ from typing import Dict, List
 import covalent as ct
 import pytest
 
-from tests.functional_tests.fixtures.executor import executor
-
 
 @pytest.mark.functional_tests
 def test_non_trivial_workflow():
@@ -39,7 +37,7 @@ def test_non_trivial_workflow():
         matrix_config: Dict
         matrix: List[List[int]]
 
-    @ct.electron(executor=executor)
+    @ct.electron(executor="awslambda")
     def expand(x: CustomMatrix):
         n_dims = x.matrix_config["n_dims"]
         matrix = x.matrix
@@ -68,7 +66,7 @@ def test_non_trivial_workflow():
             matrix_config={"mat_name": new_mat_name, "n_dims": n_dims + 1}, matrix=new_matrix
         )
 
-    @ct.electron(executor=executor)
+    @ct.electron(executor="awslambda")
     def shrink(x: List[CustomMatrix]):
         new_name = "".join(cm.matrix_config["mat_name"] for cm in x)
         new_matrix = [random.choice(x[i].matrix) for i in range(3)]
