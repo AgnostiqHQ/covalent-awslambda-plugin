@@ -22,9 +22,8 @@ import random
 from dataclasses import dataclass
 from typing import Dict, List
 
-import pytest
-
 import covalent as ct
+import pytest
 
 
 @pytest.mark.functional_tests
