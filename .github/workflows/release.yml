@@ -38,6 +38,15 @@ on:
         required: true
         type: boolean
         default: true
+    inputs:
+      prerelease:
+        description: "true: Create a pre-release, false: Create a stable release"
+        type: boolean
+        default: true
+      covalent_version:
+        description: "Semantic version of Covalent e.g 0.32.3"
+        required: true
+        type: string
 
 
 env:
@@ -116,6 +125,84 @@ jobs:
           token: ${{ secrets.COVALENT_OPS_BOT_TOKEN }}
           tag: ${{ env.RELEASE }}
           prerelease: ${{ inputs.prerelease }}
+
+  docker:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Check out release tag
+        uses: actions/checkout@v2
+        if: github.event.inputs.stable_version
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: "v${{ github.event.inputs.stable_version }}"
+
+      - name: Check out master
+        uses: actions/checkout@v2
+        if: inputs.prerelease
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Setup QEMU
+        uses: docker/setup-qemu-action@master
+        with:
+          platforms: "linux/amd64"
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@master
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          role-to-assume: ${{ secrets.ECR_PUBLIC_UPLOAD_ROLE }}
+          aws-region: us-east-1
+
+      - name: Login to Public registry
+        run: |
+          aws ecr-public get-login-password --region us-east-1 | docker login --username AWS --password-stdin public.ecr.aws
+
+      - name: Generate Tag
+        run: |
+          TAG="$(cat ./VERSION)"
+          echo "TAG: $TAG"
+          echo "TAG=$TAG" >> $GITHUB_ENV
+
+      - name: Build and push pre-release docker image
+        if: >
+          inputs.prerelease
+          && !github.events.inputs.stable_version
+        uses: docker/build-push-action@v2
+        with:
+          builder: ${{ steps.buildx.outputs.name }}
+          context: .
+          files: Dockerfile
+          platforms: "linux/amd64"
+          push: true
+          build-args: |
+            COVALENT_BASE_IMAGE="python:3.8-slim-bullseye"
+          tags: |
+            public.ecr.aws/covalent/covalent-lambda-executor:latest
+            public.ecr.aws/covalent-lambda-executor:${{ env.TAG }}
+
+      - name: Build the stable release version
+        if: >
+          !inputs.prelease
+          && github.events.input.stable_version
+        uses: docker/build-push-action@v2
+        with:
+          builder: ${{ steps.buildx.outputs.name }}
+          context: .
+          files: Dockerfile
+          platforms: "linux/amd64"
+          push: true
+          build-args: |
+            COVALENT_BASE_IMAGE="python:3.8-slim-bullseye"
+          tags: |
+            public.ecr.aws/covalent/covalent-lambda-executor:stable
 
   pypi:
     runs-on: ubuntu-latest
