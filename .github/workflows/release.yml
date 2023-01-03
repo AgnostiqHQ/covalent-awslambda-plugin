@@ -38,15 +38,6 @@ on:
         required: true
         type: boolean
         default: true
-    inputs:
-      prerelease:
-        description: "true: Create a pre-release, false: Create a stable release"
-        type: boolean
-        default: true
-      covalent_version:
-        description: "Semantic version of Covalent e.g 0.32.3"
-        required: true
-        type: string
 
 
 env:
