@@ -31,10 +31,6 @@ on:
         required: true
         type: boolean
         default: true
-			covalent_version:
-				description: "Version of Covalent, e.g. 0.202.0"
-				type: string
-				required: false
   workflow_call:
     inputs:
       prerelease:
