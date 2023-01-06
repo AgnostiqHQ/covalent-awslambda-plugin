@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+### Operations
+
+- Added docker image build job to the `release.yml` workflow
+
 ## [0.24.0] - 2022-12-15
 
 ### Changed
