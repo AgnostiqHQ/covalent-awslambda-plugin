@@ -1,4 +1,4 @@
-name: ci
+name: testdocker
 
 on:
   push:
@@ -6,7 +6,9 @@ on:
 jobs:
   testdocker:
     runs-on: ubuntu-latest
-    uses: AgnostiqHQ/covalent-awslambda-plugin/.github/workflows/docker.yml@develop
-    secrets: inherit
-    with:
-      prerelease: true
+    steps:
+      - name: Run docker pre-release
+        uses: AgnostiqHQ/covalent-awslambda-plugin/.github/workflows/docker.yml@develop
+        secrets: inherit
+        with:
+          prerelease: true
