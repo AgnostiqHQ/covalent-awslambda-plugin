@@ -21,7 +21,7 @@
 name: docker
 
 on:
-  pull_request:
+  push:
   workflow_dispatch:
     inputs:
       stable_version:
@@ -63,7 +63,7 @@ jobs:
 
       - name: Checkout ref
         uses: actions/checkout@v2
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'push'
         with:
           persist-credentials: false
           fetch-depth: 0
@@ -94,7 +94,7 @@ jobs:
           echo "TAG=$TAG" >> $GITHUB_ENV
 
       - name: Test image build
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'push'
         uses: docker/build-push-action@v2
         with:
           builder: ${{ steps.buildx.outputs.name }}

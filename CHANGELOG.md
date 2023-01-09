@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+### Changed
+
+- Changed trigger from `pull_request` to `push`
+
 ### Added
 
 - Added `pull_request` trigger to `docker` workflow for testing
