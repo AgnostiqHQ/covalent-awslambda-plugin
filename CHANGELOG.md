@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
-### Operations
+### Changed
 
 - Added docker image build job to the `release.yml` workflow
 - Update `Dockerfile` to include `PYTHONPATH` for aws lambda
