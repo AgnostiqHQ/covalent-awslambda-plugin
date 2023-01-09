@@ -23,6 +23,8 @@ FROM ${COVALENT_BASE_IMAGE}
 
 # AWS lambda specific env variables
 ARG LAMBDA_TASK_ROOT=/var/task
+ARG COVALENT_PACKAGE_VERSION
+ARG PRE_RELEASE
 
 # Install aws-lambda-cpp build dependencies
 RUN apt-get update && \
@@ -35,7 +37,12 @@ RUN apt-get update && \
   libcurl4-openssl-dev && \
   rm -rf /var/lib/apt/lists/* && \
   pip install --target "${LAMBDA_TASK_ROOT}" awslambdaric && \
-  pip install --target "${LAMBDA_TASK_ROOT}" boto3 "covalent>=0.202.0,<1"
+  pip install --target "${LAMBDA_TASK_ROOT}" boto3
+
+RUN if [ -z "$PRE_RELEASE" ]; then \
+    pip install --target "${LAMBDA_TASK_ROOT}" "$COVALENT_PACKAGE_VERSION"; else \
+    pip install --target "${LAMBDA_TASK_ROOT}" --pre "$COVALENT_PACKAGE_VERSION"; \
+  fi
 
 COPY covalent_awslambda_plugin/exec.py ${LAMBDA_TASK_ROOT}
 
