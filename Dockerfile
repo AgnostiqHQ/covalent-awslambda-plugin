@@ -21,6 +21,9 @@
 ARG COVALENT_BASE_IMAGE
 FROM ${COVALENT_BASE_IMAGE}
 
+ARG COVALENT_PACKAGE_VERSION
+ARG PRE_RELEASE
+
 # AWS lambda specific env variables
 ARG LAMBDA_TASK_ROOT=/var/task
 
@@ -35,12 +38,18 @@ RUN apt-get update && \
   libcurl4-openssl-dev && \
   rm -rf /var/lib/apt/lists/* && \
   pip install --target "${LAMBDA_TASK_ROOT}" awslambdaric && \
-  pip install --target "${LAMBDA_TASK_ROOT}" boto3 "covalent>=0.202.0,<1"
+  pip install --target "${LAMBDA_TASK_ROOT}" boto3
+
+RUN if [[ -z "$PRE_RELEASE" ]]; then \
+		pip install $COVALENT_PACKAGE_VERSION; \
+	else \
+		pip install --pre $COVALENT_PACKAGE_VERSION; \
+fi
 
 COPY covalent_awslambda_plugin/exec.py ${LAMBDA_TASK_ROOT}
 
 WORKDIR ${LAMBDA_TASK_ROOT}
-ENV PYTHONPATH=$PYTHONPATH:${LAMBDA_TASK_ROOT}
+ENV PYTHONPATH=${LAMBDA_TASK_ROOT}:/tmp/.local/lib/python3.8/site-packages:$PYTHONPATH
 
 ENTRYPOINT [ "python", "-m", "awslambdaric" ]
 CMD ["exec.handler"]
