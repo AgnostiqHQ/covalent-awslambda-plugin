@@ -41,10 +41,10 @@ RUN apt-get update && \
   pip install --target "${LAMBDA_TASK_ROOT}" boto3
 
 RUN if [[ -z "$PRE_RELEASE" ]]; then \
-		pip install $COVALENT_PACKAGE_VERSION; \
-	else \
-		pip install --pre $COVALENT_PACKAGE_VERSION; \
-fi
+			pip install $COVALENT_PACKAGE_VERSION; \
+		else \
+			pip install --pre $COVALENT_PACKAGE_VERSION; \
+		fi
 
 COPY covalent_awslambda_plugin/exec.py ${LAMBDA_TASK_ROOT}
 
