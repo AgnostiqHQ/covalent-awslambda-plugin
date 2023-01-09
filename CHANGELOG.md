@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+### Added
+
+- Added `pull_request` trigger to `docker` workflow for testing
+
 ### Changed
 
 - Updated docker workflow to install covalent pre-releases, syntax fixes
