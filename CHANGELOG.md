@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Operations
 
 - Added docker image build job to the `release.yml` workflow
+- Update `Dockerfile` to include `PYTHONPATH` for aws lambda
+- Update `Dockerfile` to install pre-release versions of `covalent`
 
 ## [0.24.0] - 2022-12-15
 
