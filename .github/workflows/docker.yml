@@ -21,6 +21,7 @@
 name: docker
 
 on:
+  pull_request:
   workflow_dispatch:
     inputs:
       stable_version:
@@ -60,6 +61,14 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
 
+      - name: Checkout ref
+        uses: actions/checkout@v2
+        if: github.event_name == 'pull_request'
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: "${{ GITHUB_REF }}"
+
       - name: Setup QEMU
         uses: docker/setup-qemu-action@v2
         with:
@@ -83,6 +92,23 @@ jobs:
           TAG="$(cat ./VERSION)"
           echo "TAG: $TAG"
           echo "TAG=$TAG" >> $GITHUB_ENV
+
+      - name: Test image build
+        if: github.event_name == 'pull_request'
+        uses: docker/build-push-action@v2
+        with:
+          builder: ${{ steps.buildx.outputs.name }}
+          context: .
+          files: Dockerfile
+          platforms: "linux/amd64"
+          push: false
+          build-args: |
+            COVALENT_BASE_IMAGE="python:3.8-slim-bullseye"
+            COVALENT_PACKAGE_VERSION="covalent>=0.202.0,<1"
+            PRE_RELEASE=true
+          tags: |
+            public.ecr.aws/covalent/covalent-lambda-executor:latest
+            public.ecr.aws/covalent/lambda-executor:${{ env.TAG }}
 
       - name: Build and push pre-release docker image
         if: >
@@ -119,3 +145,4 @@ jobs:
             COVALENT_PACKAGE_VERSION="covalent>=0.202.0,<1"
           tags: |
             public.ecr.aws/covalent/covalent-lambda-executor:stable
+
