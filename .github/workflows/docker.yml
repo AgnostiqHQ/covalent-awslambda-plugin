@@ -103,7 +103,7 @@ jobs:
           platforms: "linux/amd64"
           push: false
           build-args: |
-            COVALENT_BASE_IMAGE="python:3.8-slim-bullseye"
+            COVALENT_BASE_IMAGE=python:3.8-slim-bullseye
             COVALENT_PACKAGE_VERSION="covalent>=0.202.0,<1"
             PRE_RELEASE=true
           tags: |
