@@ -21,6 +21,9 @@
 ARG COVALENT_BASE_IMAGE
 FROM ${COVALENT_BASE_IMAGE}
 
+ARG COVALENT_PACKAGE_VERSION
+ARG PRE_RELEASE
+
 # AWS lambda specific env variables
 ARG LAMBDA_TASK_ROOT=/var/task
 ARG COVALENT_PACKAGE_VERSION
@@ -47,7 +50,7 @@ RUN if [ -z "$PRE_RELEASE" ]; then \
 COPY covalent_awslambda_plugin/exec.py ${LAMBDA_TASK_ROOT}
 
 WORKDIR ${LAMBDA_TASK_ROOT}
-ENV PYTHONPATH=$PYTHONPATH:${LAMBDA_TASK_ROOT}
+ENV PYTHONPATH=${LAMBDA_TASK_ROOT}:/tmp/.local/lib/python3.8/site-packages:$PYTHONPATH
 
 ENTRYPOINT [ "python", "-m", "awslambdaric" ]
 CMD ["exec.handler"]
