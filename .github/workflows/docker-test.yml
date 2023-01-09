@@ -18,29 +18,13 @@
 #
 # Relief from the License may be granted by purchasing a commercial license.
 
-name: docker
+name: docker-test
 
 on:
-  workflow_dispatch:
-    inputs:
-      version:
-        description: "Stable version number, e.g. 0.32.3"
-        type: string
-      prerelease:
-        description: "true: Create a prerelease. false: Create a stable release"
-        required: true
-        type: boolean
-        default: true
-  workflow_call:
-    inputs:
-      prerelease:
-        description: "true: Create a prerelease. false: Create a stable release"
-        required: true
-        type: boolean
-        default: true
+  pull_request:
 
 jobs:
-  docker:
+  docker-test:
     runs-on: ubuntu-latest
     permissions:
       id-token: write
@@ -48,22 +32,10 @@ jobs:
     steps:
       - name: Check out release tag
         uses: actions/checkout@v2
-        if: >
-          github.event_name == 'workflow_dispatch'
-          && github.event.inputs.version
         with:
           persist-credentials: false
           fetch-depth: 0
-          ref: "v${{ github.event.inputs.version }}"
-
-      - name: Checkout default branch (develop)
-        uses: actions/checkout@v2
-        if: >
-          inputs.prerelease
-          && github.event_name == 'workflow_call'
-        with:
-          persist-credentials: false
-          fetch-depth: 0
+          ref: "68-move-executor-deployment-workflow-from-core-covalent-update "
 
       - name: Setup QEMU
         uses: docker/setup-qemu-action@v2
@@ -90,16 +62,13 @@ jobs:
           echo "TAG=$TAG" >> $GITHUB_ENV
 
       - name: Build and push pre-release docker image
-        if: >
-          inputs.prerelease
-          && !github.events.inputs.version
         uses: docker/build-push-action@v2
         with:
           builder: ${{ steps.buildx.outputs.name }}
           context: .
           files: Dockerfile
           platforms: "linux/amd64"
-          push: true
+          push: false
           build-args: |
             COVALENT_BASE_IMAGE=python:3.8-slim-bullseye
             COVALENT_PACKAGE_VERSION=covalent>=0.202.0,<1
@@ -107,21 +76,3 @@ jobs:
           tags: |
             public.ecr.aws/covalent/covalent-lambda-executor:latest
             public.ecr.aws/covalent-lambda-executor:${{ env.TAG }}
-
-      - name: Build the stable release version
-        if: >
-          !inputs.prerelease
-          && github.events.input.version
-          && github.event_name == 'workflow_dispatch'
-        uses: docker/build-push-action@v2
-        with:
-          builder: ${{ steps.buildx.outputs.name }}
-          context: .
-          files: Dockerfile
-          platforms: "linux/amd64"
-          push: true
-          build-args: |
-            COVALENT_BASE_IMAGE=python:3.8-slim-bullseye
-            COVALENT_PACKAGE_VERSION=covalent>=0.202.0,<1
-          tags: |
-            public.ecr.aws/covalent/covalent-lambda-executor:stable
