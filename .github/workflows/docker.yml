@@ -21,7 +21,6 @@
 name: docker
 
 on:
-  push:
   workflow_dispatch:
     inputs:
       stable_version:
