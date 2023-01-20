@@ -47,7 +47,7 @@ RUN if [ -z "$PRE_RELEASE" ]; then \
 COPY covalent_awslambda_plugin/exec.py ${LAMBDA_TASK_ROOT}
 
 WORKDIR ${LAMBDA_TASK_ROOT}
-ENV PYTHONPATH=${LAMBDA_TASK_ROOT}:/tmp/.local/lib/python3.8/site-packages:$PYTHONPATH
+ENV PYTHONPATH=$PYTHONPATH:${LAMBDA_TASK_ROOT}
 
 ENTRYPOINT [ "python", "-m", "awslambdaric" ]
 CMD ["exec.handler"]
