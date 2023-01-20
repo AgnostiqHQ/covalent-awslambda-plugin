@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+## Changed
+
+- Fixed ECR repo URI in docker workflow
+
 ## [0.25.0] - 2023-01-20
 
 ### Changed

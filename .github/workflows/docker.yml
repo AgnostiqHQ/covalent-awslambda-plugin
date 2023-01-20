@@ -105,7 +105,7 @@ jobs:
             PRE_RELEASE=true
           tags: |
             public.ecr.aws/covalent/covalent-lambda-executor:latest
-            public.ecr.aws/covalent/lambda-executor:${{ env.TAG }}
+            public.ecr.aws/covalent/covalent-lambda-executor:${{ env.TAG }}
 
       - name: Build the stable release version
         if: >
