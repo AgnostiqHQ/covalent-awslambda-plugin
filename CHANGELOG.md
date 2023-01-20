@@ -7,9 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
-### Operations
+### Changed
 
+- Changed trigger from `pull_request` to `push`
+
+### Added
+
+- Added `pull_request` trigger to `docker` workflow for testing
+
+### Changed
+
+- Updated docker workflow to install covalent pre-releases, syntax fixes
 - Added docker image build job to the `release.yml` workflow
+- Update `Dockerfile` to include `PYTHONPATH` for aws lambda
+- Update `Dockerfile` to install pre-release versions of `covalent`
 
 ## [0.24.0] - 2022-12-15
 
