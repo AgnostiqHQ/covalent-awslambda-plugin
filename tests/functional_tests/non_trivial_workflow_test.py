@@ -28,7 +28,6 @@ import pytest
 
 @pytest.mark.functional_tests
 def test_non_trivial_workflow():
-
     # Width and depth
     N = 3
 
@@ -78,7 +77,6 @@ def test_non_trivial_workflow():
 
     @ct.lattice
     def workflow(n):
-
         nodes = range(n)
         initiate = CustomMatrix(
             matrix_config={"mat_name": "luffy", "n_dims": 3},
