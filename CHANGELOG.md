@@ -7,7 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
-## Changed
+### Fixed
+
+- Broken release.yml workflow.
+
+### Changed
 
 - Fixed ECR repo URI in docker workflow
 
