@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+## [0.28.0] - 2023-02-09
+
 ### Changed
 
 - Current path env variable in tests workflow.
