@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Updates for pre-commit hooks.
 
+## [0.26.0] - 2023-02-07
+
+### Fixed
+
+- Broken release.yml workflow.
+
 ### Changed
 
 - Fixed ECR repo URI in docker workflow
