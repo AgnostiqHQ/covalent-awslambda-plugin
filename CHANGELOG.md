@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Current path env variable in tests workflow. 
+- Current path env variable in tests workflow.
 
 ## [0.27.1] - 2023-02-09
 
