@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+### Fixed
+
+- Adding safe directory flag to execute git commands in the tests workflow.
+
 ## [0.27.0] - 2023-02-09
 
 ### Added
