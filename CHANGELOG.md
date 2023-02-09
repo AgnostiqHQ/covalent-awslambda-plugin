@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+## [0.26.1] - 2023-02-09
+
 ### Fixed
 
 - Fix broken Centos tests workflow by updating Git version.
