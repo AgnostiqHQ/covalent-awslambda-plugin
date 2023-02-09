@@ -10,6 +10,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Adding a `repository_dispatch` trigger to enable triggering this workflow from workflows in other repository
 
+## [0.26.1] - 2023-02-09
+
+### Fixed
+
+- Fix broken Centos tests workflow by updating Git version.
+- License checker workflow.
+
+### Operations
+
+- Updates for pre-commit hooks.
+
 ## [0.26.0] - 2023-02-07
 
 ### Fixed

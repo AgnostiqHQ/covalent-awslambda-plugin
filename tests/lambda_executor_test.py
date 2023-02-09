@@ -105,7 +105,6 @@ async def test_function_pickle_dump(lambda_executor, mocker):
 
 @pytest.mark.asyncio
 async def test_upload_fileobj(lambda_executor, mocker):
-
     lambda_executor.get_session = MagicMock()
 
     mocker.patch("covalent_awslambda_plugin.awslambda.app_log")
