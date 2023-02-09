@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+### Added
+- Adding a `repository_dispatch` trigger to enable triggering this workflow from workflows in other repository
+
 ## [0.26.1] - 2023-02-09
 
 ### Fixed
