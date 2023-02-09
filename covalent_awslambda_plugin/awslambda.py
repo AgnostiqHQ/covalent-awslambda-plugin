@@ -78,7 +78,6 @@ class AWSLambdaExecutor(AWSExecutor):
         poll_freq: int = None,
         timeout: int = 900,
     ) -> None:
-
         # AWSExecutor parameters
         required_attrs = {
             "credentials_file": credentials_file
