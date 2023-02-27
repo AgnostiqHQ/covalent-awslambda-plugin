@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+## [0.29.0] - 2023-02-27
+
 ### Changed
 
 - Removed execution_role from the executor defaults.
