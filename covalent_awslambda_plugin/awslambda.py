@@ -43,7 +43,6 @@ _EXECUTOR_PLUGIN_DEFAULTS = {
     "profile": "",
     "region": "",
     "s3_bucket_name": "covalent-lambda-job-resources",
-    "execution_role": "CovalentLambdaExecutionRole",
     "poll_freq": 5,
     "timeout": 900,
 }
@@ -59,7 +58,6 @@ class AWSLambdaExecutor(AWSExecutor):
     Args:
         function_name: Name of an existing lambda function to use during execution (default: `covalent-awsambda-executor`)
         s3_bucket_name: Name of a AWS S3 bucket that the executor can use to store temporary files (default: `covalent-lambda-job-resources`)
-        execution_role: Name of the IAM role assigned to the AWS Lambda function
         credentials_file: Path to AWS credentials file (default: `~/.aws/credentials`)
         profile: AWS profile (default: `default`)
         region: AWS region (default: `us-east-1`)
@@ -74,7 +72,6 @@ class AWSLambdaExecutor(AWSExecutor):
         credentials_file: str = None,
         profile: str = None,
         region: str = None,
-        execution_role: str = "",
         poll_freq: int = None,
         timeout: int = 900,
     ) -> None:
@@ -85,7 +82,6 @@ class AWSLambdaExecutor(AWSExecutor):
             "profile": profile or get_config("executors.awslambda.profile"),
             "region": region or get_config("executors.awslambda.region"),
             "s3_bucket_name": s3_bucket_name or get_config("executors.awslambda.s3_bucket_name"),
-            "execution_role": execution_role or get_config("executors.awslambda.execution_role"),
         }
 
         super().__init__(**required_attrs)
