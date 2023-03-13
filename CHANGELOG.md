@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+### Added
+
+- Adding `terraform` infrastructure provisioning scripts to the plugin
+
 ## [0.29.0] - 2023-02-27
 
 ### Changed
