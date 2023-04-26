@@ -100,4 +100,6 @@ def test_non_trivial_workflow():
     res = ct.get_result(dispatch_id, wait=True)
     status = str(res.status)
 
+    print(res)
+
     assert status == str(ct.status.COMPLETED)

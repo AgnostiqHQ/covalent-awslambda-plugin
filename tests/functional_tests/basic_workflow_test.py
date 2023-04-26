@@ -42,4 +42,6 @@ def test_basic_workflow():
     result = ct.get_result(dispatch_id, wait=True)
     status = str(result.status)
 
+    print(result)
+
     assert status == str(ct.status.COMPLETED)
