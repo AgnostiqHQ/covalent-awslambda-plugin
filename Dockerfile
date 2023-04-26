@@ -26,6 +26,8 @@ ARG LAMBDA_TASK_ROOT=/var/task
 ARG COVALENT_PACKAGE_VERSION
 ARG PRE_RELEASE
 
+ENV COVALENT_PLUGIN_LOAD=false
+
 # Install aws-lambda-cpp build dependencies
 RUN apt-get update && \
   apt-get install -y --no-install-recommends \

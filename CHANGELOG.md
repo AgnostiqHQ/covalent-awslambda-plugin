@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+### Changed
+
+- Setting `COVALENT_PLUGIN_LOAD=false` in base executor image to avoid multiprocessing issue in lambda
+
 ## [0.31.0] - 2023-04-26
 
 ### Changed
