@@ -74,5 +74,5 @@ resource aws_lambda_function lambda {
     image_uri = "${aws_ecr_repository.ecr_repository.repository_url}:${var.executor_base_image_tag_name}"
     ephemeral_storage {
       size = var.ephemeral_storage  # Min 512 MB and the Max 10240 MB
-    }   
+    }
 }
