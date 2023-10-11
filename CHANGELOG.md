@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+## [0.33.0] - 2023-10-11
+
 ### Added
 
 - Added the lambda terraform files to `covalent_awslambda_plugin` folder from terraform repo ( including license blocks )
