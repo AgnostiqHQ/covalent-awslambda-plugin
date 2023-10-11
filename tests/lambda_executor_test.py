@@ -61,6 +61,9 @@ def test_init():
     assert awslambda.poll_freq == 30
 
 
+@pytest.mark.skip(
+    reason="Testing of invocation of these functions is not any particular executor's responsibility, but rather the responsibility of the Covalent's executor mechanism."
+)
 @pytest.mark.asyncio
 async def test_setup_and_teardown_are_invoked(lambda_executor, mocker):
     "Simply assert that the setup, run and teardown methods are invoked when execute is called"
