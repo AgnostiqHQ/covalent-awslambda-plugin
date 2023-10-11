@@ -1,2 +1,5 @@
 include VERSION
 include requirements.txt
+include covalent_awslambda_plugin/assets/infra/*
+exclude covalent_awslambda_plugin/assets/infra/*.swp
+include covalent_awslambda_plugin/assets/infra/*.tf
