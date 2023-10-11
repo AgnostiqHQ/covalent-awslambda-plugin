@@ -6,3 +6,10 @@ dist
 results
 scratch
 *.ipynb
+
+# Terraform
+**/.terraform/**
+**/*.tfstate*
+**/.terraform.lock.hcl
+**/*.tfvars
+**/*.plan

@@ -11,6 +11,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Updated license to Apache 2.0
 
+## [0.33.0] - 2023-10-11
+
+### Added
+
+- Added the lambda terraform files to `covalent_awslambda_plugin` folder from terraform repo ( including license blocks )
+
+### Changed
+
+- Modified the MANIFEST.in to include the newly added plugin files
+- Added terraform ignore file paths to `.gitignore`
+
 ## [0.32.0] - 2023-04-26
 
 ### Changed
