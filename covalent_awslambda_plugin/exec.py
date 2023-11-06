@@ -18,6 +18,7 @@
 
 import json
 import os
+import traceback
 
 import boto3
 import cloudpickle as pickle
@@ -49,9 +50,13 @@ def handler(event, context):
 
         s3.upload_file(local_result_filename, s3_bucket, result_filename)
     except Exception as ex:
+
+        # Capture the full traceback
+        tb = "".join(traceback.TracebackException.from_exception(ex).format())
+
         # Write json and upload to S3
         with open(local_exception_filename, "w") as f:
-            json.dump(str(ex), f)
+            json.dump(tb, f)
 
         s3.upload_file(local_exception_filename, s3_bucket, exception_filename)
 
