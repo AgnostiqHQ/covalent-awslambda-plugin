@@ -54,3 +54,5 @@ def handler(event, context):
             json.dump(str(ex), f)
 
         s3.upload_file(local_exception_filename, s3_bucket, exception_filename)
+
+        raise ex
