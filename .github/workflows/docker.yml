@@ -75,6 +75,7 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
+          ref: post-qelectron-fixes
 
       - name: Setup QEMU
         uses: docker/setup-qemu-action@v2
