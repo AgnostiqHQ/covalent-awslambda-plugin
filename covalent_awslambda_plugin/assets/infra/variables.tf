@@ -15,7 +15,7 @@
 # limitations under the License.
 
 variable "name" {
-  default = "covalent-lambda"
+  default = "sankalp-covalent-lambda"
   description = "Prefix to use for all provisioned resources"
 }
 

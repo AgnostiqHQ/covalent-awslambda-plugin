@@ -18,6 +18,9 @@
 
 import json
 import os
+import sys
+import traceback
+from unittest.mock import MagicMock
 
 import boto3
 import cloudpickle as pickle
@@ -40,6 +43,9 @@ def handler(event, context):
         s3 = boto3.client("s3")
         s3.download_file(s3_bucket, func_filename, local_func_filename)
 
+        # Patching mpire to avoid issues with multiprocessing on AWS Lambda
+        sys.modules["mpire"] = MagicMock()
+
         with open(local_func_filename, "rb") as f:
             function, args, kwargs = pickle.load(f)
 
@@ -49,8 +55,14 @@ def handler(event, context):
 
         s3.upload_file(local_result_filename, s3_bucket, result_filename)
     except Exception as ex:
+
+        # Capture the full traceback
+        tb = "".join(traceback.TracebackException.from_exception(ex).format())
+
         # Write json and upload to S3
         with open(local_exception_filename, "w") as f:
-            json.dump(str(ex), f)
+            json.dump(tb, f)
 
         s3.upload_file(local_exception_filename, s3_bucket, exception_filename)
+
+        raise ex
