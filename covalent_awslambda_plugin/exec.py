@@ -18,13 +18,12 @@
 
 import json
 import os
+import sys
 import traceback
+from unittest.mock import MagicMock
 
 import boto3
 import cloudpickle as pickle
-
-from unittest.mock import MagicMock
-import sys
 
 
 def handler(event, context):
