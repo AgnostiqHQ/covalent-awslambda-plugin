@@ -44,7 +44,7 @@ def handler(event, context):
         s3.download_file(s3_bucket, func_filename, local_func_filename)
 
         # Patching mpire to avoid issues with multiprocessing on AWS Lambda
-        with patch.dict('sys.modules', {'mpire': MagicMock()}):
+        with patch("mpire.WorkerPool", MagicMock()), patch("mpire.async_result.AsyncResult", MagicMock()):
             with open(local_func_filename, "rb") as f:
                 function, args, kwargs = pickle.load(f)
 
