@@ -23,6 +23,8 @@ import traceback
 import boto3
 import cloudpickle as pickle
 
+from unittest.mock import patch, MagicMock
+
 
 def handler(event, context):
     try:
@@ -41,12 +43,14 @@ def handler(event, context):
         s3 = boto3.client("s3")
         s3.download_file(s3_bucket, func_filename, local_func_filename)
 
-        with open(local_func_filename, "rb") as f:
-            function, args, kwargs = pickle.load(f)
+        # Patching mpire to avoid issues with multiprocessing on AWS Lambda
+        with patch.dict('sys.modules', {'mpire': MagicMock()}):
+            with open(local_func_filename, "rb") as f:
+                function, args, kwargs = pickle.load(f)
 
-        result = function(*args, **kwargs)
-        with open(local_result_filename, "wb") as f:
-            pickle.dump(result, f)
+            result = function(*args, **kwargs)
+            with open(local_result_filename, "wb") as f:
+                pickle.dump(result, f)
 
         s3.upload_file(local_result_filename, s3_bucket, result_filename)
     except Exception as ex:
